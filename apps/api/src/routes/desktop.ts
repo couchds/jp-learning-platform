@@ -50,15 +50,24 @@ desktopRouter.post(
 
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
+        child.off("exit", onExit);
         resolve();
-      }, 150);
+      }, 600);
 
       function onError(error: Error) {
         clearTimeout(timer);
+        child.off("exit", onExit);
         reject(error);
       }
 
+      function onExit(code: number | null, signal: NodeJS.Signals | null) {
+        clearTimeout(timer);
+        child.off("error", onError);
+        reject(new Error(`process exited during startup with ${signal ?? `code ${code ?? "unknown"}`}`));
+      }
+
       child.once("error", onError);
+      child.once("exit", onExit);
     }).catch((error: unknown) => {
       throw new HttpError(
         500,

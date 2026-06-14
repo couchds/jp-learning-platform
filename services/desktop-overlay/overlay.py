@@ -45,6 +45,7 @@ class Term:
     meaning: str | None = None
     source: str = "ocr"
     source_image_id: int | None = None
+    frequency: int = 1
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "Term":
@@ -55,6 +56,7 @@ class Term:
             meaning=payload.get("meaning"),
             source=str(payload.get("source") or "ocr"),
             source_image_id=payload.get("sourceImageId") or payload.get("source_image_id"),
+            frequency=max(int(payload.get("frequency") or 1), 1),
         )
 
     def to_api(self) -> dict[str, Any]:
@@ -65,7 +67,7 @@ class Term:
             "meaning": self.meaning,
             "source": self.source,
             "sourceImageId": self.source_image_id,
-            "frequency": 1,
+            "frequency": self.frequency,
         }
 
 

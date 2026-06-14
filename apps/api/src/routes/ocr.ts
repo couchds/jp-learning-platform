@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import { Router } from "express";
 import { config } from "../config.js";
 import { getDb, readJson, touchNow, writeJson } from "../db/index.js";
@@ -41,11 +42,15 @@ ocrRouter.post(
       throw new HttpError(400, "Missing image file");
     }
 
-    const result = await runOcr(req.file.path, req.file.originalname, req.file.mimetype);
-    res.json({
-      ...result,
-      terms: termsFromOcrElements(result.elements)
-    });
+    try {
+      const result = await runOcr(req.file.path, req.file.originalname, req.file.mimetype);
+      res.json({
+        ...result,
+        terms: termsFromOcrElements(result.elements)
+      });
+    } finally {
+      await fs.rm(req.file.path, { force: true });
+    }
   })
 );
 
