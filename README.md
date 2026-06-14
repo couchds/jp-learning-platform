@@ -51,6 +51,33 @@ npm run dev
 
 Python services will each have their own virtual environment and `requirements.txt`. Heavy OCR and speech model dependencies are kept out of Node installation so the app can boot even when those optional services are not running.
 
+Run optional companion services in separate terminals:
+
+```bash
+cd services/recognize
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
+
+```bash
+cd services/ocr
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install manga-ocr
+python app.py
+```
+
+```bash
+cd services/speech-model
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python api.py
+```
+
 ## Data Sources
 
 The app is designed to import local copies of public Japanese learning datasets rather than downloading them at runtime:
@@ -92,6 +119,12 @@ Downloaded dictionary files should stay outside git. Import scripts will documen
 - `POST /api/speech/train`
 - `POST /api/speech/predict`
 - `POST /api/speech/recordings`
+
+## Local Companion Services
+
+- OCR: `services/ocr`, default `http://127.0.0.1:5100`, local `manga-ocr` or `easyocr`.
+- KanjiDraw recognition: `services/recognize`, default `http://127.0.0.1:5000`.
+- Speech model: `services/speech-model`, default `http://127.0.0.1:5200`.
 
 ## Versioning
 

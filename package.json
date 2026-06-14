@@ -13,6 +13,7 @@
     "build": "npm run build --workspaces --if-present",
     "check": "npm run check --workspaces --if-present",
     "dev": "npm run dev --workspace @jp-learning-platform/api",
+    "dev:api": "npm run dev --workspace @jp-learning-platform/api",
     "format": "npm run format --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   },
