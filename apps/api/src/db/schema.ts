@@ -1,0 +1,216 @@
+import type Database from "better-sqlite3";
+
+const migrations: Array<{ id: number; name: string; sql: string }> = [
+  {
+    id: 1,
+    name: "initial_local_first_schema",
+    sql: `
+      CREATE TABLE IF NOT EXISTS app_profile (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        display_name TEXT NOT NULL DEFAULT 'Local Learner',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      INSERT OR IGNORE INTO app_profile (id) VALUES (1);
+
+      CREATE TABLE IF NOT EXISTS kanji (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        literal TEXT NOT NULL UNIQUE,
+        unicode_codepoint TEXT,
+        classical_radical INTEGER,
+        stroke_count INTEGER,
+        grade INTEGER,
+        frequency_rank INTEGER,
+        jlpt_level INTEGER,
+        on_readings_json TEXT NOT NULL DEFAULT '[]',
+        kun_readings_json TEXT NOT NULL DEFAULT '[]',
+        nanori_readings_json TEXT NOT NULL DEFAULT '[]',
+        meanings_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_kanji_literal ON kanji(literal);
+      CREATE INDEX IF NOT EXISTS idx_kanji_jlpt ON kanji(jlpt_level);
+      CREATE INDEX IF NOT EXISTS idx_kanji_grade ON kanji(grade);
+      CREATE INDEX IF NOT EXISTS idx_kanji_frequency ON kanji(frequency_rank);
+
+      CREATE TABLE IF NOT EXISTS dictionary_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entry_id INTEGER NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS entry_kanji (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entry_id INTEGER NOT NULL REFERENCES dictionary_entries(id) ON DELETE CASCADE,
+        kanji TEXT NOT NULL,
+        is_common INTEGER NOT NULL DEFAULT 0,
+        priority_tags_json TEXT NOT NULL DEFAULT '[]',
+        info_json TEXT NOT NULL DEFAULT '[]',
+        kanji_order INTEGER NOT NULL,
+        UNIQUE(entry_id, kanji_order)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_entry_kanji_entry_id ON entry_kanji(entry_id);
+      CREATE INDEX IF NOT EXISTS idx_entry_kanji_text ON entry_kanji(kanji);
+
+      CREATE TABLE IF NOT EXISTS entry_readings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entry_id INTEGER NOT NULL REFERENCES dictionary_entries(id) ON DELETE CASCADE,
+        reading TEXT NOT NULL,
+        is_common INTEGER NOT NULL DEFAULT 0,
+        priority_tags_json TEXT NOT NULL DEFAULT '[]',
+        info_json TEXT NOT NULL DEFAULT '[]',
+        reading_order INTEGER NOT NULL,
+        UNIQUE(entry_id, reading_order)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_entry_readings_entry_id ON entry_readings(entry_id);
+      CREATE INDEX IF NOT EXISTS idx_entry_readings_text ON entry_readings(reading);
+
+      CREATE TABLE IF NOT EXISTS entry_senses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entry_id INTEGER NOT NULL REFERENCES dictionary_entries(id) ON DELETE CASCADE,
+        sense_order INTEGER NOT NULL,
+        parts_of_speech_json TEXT NOT NULL DEFAULT '[]',
+        fields_json TEXT NOT NULL DEFAULT '[]',
+        misc_json TEXT NOT NULL DEFAULT '[]',
+        dialects_json TEXT NOT NULL DEFAULT '[]',
+        UNIQUE(entry_id, sense_order)
+      );
+
+      CREATE TABLE IF NOT EXISTS sense_glosses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sense_id INTEGER NOT NULL REFERENCES entry_senses(id) ON DELETE CASCADE,
+        gloss TEXT NOT NULL,
+        gloss_type TEXT,
+        gloss_order INTEGER NOT NULL,
+        UNIQUE(sense_id, gloss_order)
+      );
+
+      CREATE TABLE IF NOT EXISTS resources (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'not_started',
+        description TEXT,
+        cover_image_path TEXT,
+        difficulty_level TEXT,
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(type);
+      CREATE INDEX IF NOT EXISTS idx_resources_status ON resources(status);
+
+      CREATE TABLE IF NOT EXISTS resource_kanji (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        resource_id INTEGER NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+        kanji_id INTEGER NOT NULL REFERENCES kanji(id) ON DELETE CASCADE,
+        frequency INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(resource_id, kanji_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS resource_words (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        resource_id INTEGER NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+        entry_id INTEGER NOT NULL REFERENCES dictionary_entries(id) ON DELETE CASCADE,
+        frequency INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(resource_id, entry_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS custom_vocabulary (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        resource_id INTEGER NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+        word TEXT NOT NULL,
+        reading TEXT,
+        meaning TEXT,
+        frequency INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(resource_id, word)
+      );
+
+      CREATE TABLE IF NOT EXISTS resource_images (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        resource_id INTEGER REFERENCES resources(id) ON DELETE CASCADE,
+        file_path TEXT NOT NULL,
+        original_name TEXT,
+        mime_type TEXT,
+        size_bytes INTEGER,
+        ocr_text TEXT,
+        ocr_elements_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS pronunciation_recordings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entry_id INTEGER REFERENCES dictionary_entries(id) ON DELETE SET NULL,
+        word TEXT,
+        audio_path TEXT NOT NULL,
+        duration_ms INTEGER,
+        is_reference INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS user_knowledge (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_type TEXT NOT NULL,
+        item_key TEXT NOT NULL,
+        stage INTEGER NOT NULL DEFAULT 0,
+        last_seen_at TEXT,
+        next_review_at TEXT,
+        lapses INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(item_type, item_key)
+      );
+    `
+  }
+];
+
+export function migrate(db: Database.Database) {
+  db.exec(`
+    PRAGMA foreign_keys = ON;
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  const applied = new Set(
+    db.prepare("SELECT id FROM schema_migrations").all().map((row) => Number((row as { id: number }).id))
+  );
+
+  for (const migration of migrations) {
+    if (applied.has(migration.id)) {
+      continue;
+    }
+
+    const apply = db.transaction(() => {
+      db.exec(migration.sql);
+      db.prepare("INSERT INTO schema_migrations (id, name) VALUES (?, ?)").run(
+        migration.id,
+        migration.name
+      );
+    });
+
+    apply();
+  }
+}
