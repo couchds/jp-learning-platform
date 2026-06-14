@@ -74,7 +74,7 @@ function splitConcat(value: string | null): string[] {
     return [];
   }
 
-  return value.split("|||").filter(Boolean);
+  return Array.from(new Set(value.split("|||").filter(Boolean)));
 }
 
 export function mapWordSummary(row: WordSummaryRow) {

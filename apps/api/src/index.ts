@@ -15,8 +15,25 @@ import { wordsRouter } from "./routes/words.js";
 import { errorHandler } from "./lib/http.js";
 
 const app = express();
+const allowedOrigins = new Set(config.allowedOrigins);
 
-app.use(cors({ origin: true }));
+app.use((req, res, next) => {
+  const origin = req.get("origin");
+  if (!origin || allowedOrigins.has(origin)) {
+    next();
+    return;
+  }
+
+  res.status(403).json({ error: "Origin is not allowed for the local API" });
+});
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      callback(null, !origin || allowedOrigins.has(origin));
+    }
+  })
+);
 app.use(express.json({ limit: "2mb" }));
 
 if (config.enableRequestLogging) {
@@ -31,8 +48,8 @@ app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     mode: "local-first",
-    databasePath: config.databasePath,
-    uploadDir: config.uploadDir
+    database: "sqlite",
+    storage: "local"
   });
 });
 

@@ -9,15 +9,44 @@ const wordSummarySql = `
   SELECT
     d.id,
     d.entry_id,
-    GROUP_CONCAT(ek.kanji, '|||') AS kanji_forms,
-    GROUP_CONCAT(er.reading, '|||') AS readings,
-    GROUP_CONCAT(sg.gloss, '|||') AS glosses,
-    GROUP_CONCAT(es.parts_of_speech_json, '|||') AS parts_of_speech
+    (
+      SELECT GROUP_CONCAT(kanji, '|||')
+      FROM (
+        SELECT DISTINCT kanji, kanji_order
+        FROM entry_kanji
+        WHERE entry_id = d.id
+        ORDER BY kanji_order
+      )
+    ) AS kanji_forms,
+    (
+      SELECT GROUP_CONCAT(reading, '|||')
+      FROM (
+        SELECT DISTINCT reading, reading_order
+        FROM entry_readings
+        WHERE entry_id = d.id
+        ORDER BY reading_order
+      )
+    ) AS readings,
+    (
+      SELECT GROUP_CONCAT(gloss, '|||')
+      FROM (
+        SELECT DISTINCT sg.gloss, es.sense_order, sg.gloss_order
+        FROM entry_senses es
+        JOIN sense_glosses sg ON sg.sense_id = es.id
+        WHERE es.entry_id = d.id
+        ORDER BY es.sense_order, sg.gloss_order
+      )
+    ) AS glosses,
+    (
+      SELECT GROUP_CONCAT(parts_of_speech_json, '|||')
+      FROM (
+        SELECT DISTINCT parts_of_speech_json, sense_order
+        FROM entry_senses
+        WHERE entry_id = d.id
+        ORDER BY sense_order
+      )
+    ) AS parts_of_speech
   FROM dictionary_entries d
-  LEFT JOIN entry_kanji ek ON ek.entry_id = d.id
-  LEFT JOIN entry_readings er ON er.entry_id = d.id
-  LEFT JOIN entry_senses es ON es.entry_id = d.id
-  LEFT JOIN sense_glosses sg ON sg.sense_id = es.id
 `;
 
 wordsRouter.get(
@@ -57,10 +86,6 @@ wordsRouter.get(
       .prepare(
         `SELECT COUNT(DISTINCT d.id) AS count
          FROM dictionary_entries d
-         LEFT JOIN entry_kanji ek ON ek.entry_id = d.id
-         LEFT JOIN entry_readings er ON er.entry_id = d.id
-         LEFT JOIN entry_senses es ON es.entry_id = d.id
-         LEFT JOIN sense_glosses sg ON sg.sense_id = es.id
          ${where}`
       )
       .get(...params) as { count: number };

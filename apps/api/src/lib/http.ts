@@ -48,7 +48,8 @@ export function errorHandler(
 }
 
 export function parseLimitOffset(query: Request["query"]) {
-  const limit = Math.min(Number.parseInt(String(query.limit ?? "50"), 10) || 50, 200);
+  const rawLimit = Number.parseInt(String(query.limit ?? "50"), 10) || 50;
+  const limit = Math.min(Math.max(rawLimit, 1), 200);
   const offset = Math.max(Number.parseInt(String(query.offset ?? "0"), 10) || 0, 0);
   return { limit, offset };
 }
