@@ -7,5 +7,7 @@
 - Token and kanji boxes are estimated slices inside an EasyOCR detection line, marked with `bbox_source=estimated_line_slice`.
 - EasyOCR filters detections below `OCR_EASYOCR_MIN_CONFIDENCE=0.05` by default to reduce noisy full-window highlights.
 - `/health` reports `status=warming` until the selected OCR model is actually loaded.
-- The desktop overlay renders the crop preview first; this helps diagnose macOS Screen Recording permission issues because blocked captures often appear blank.
+- The desktop hotkey scans the monitor under the mouse pointer immediately and renders a full-screen screenshot review overlay with highlights and selectable terms.
+- The manual Capture Region control remains available for precise crops when full-screen OCR is too noisy.
+- The desktop overlay renders the captured image first; this helps diagnose macOS Screen Recording permission issues because blocked captures often appear blank.
 - If a user sees text but no boxes, check `/api/ocr/health` for `active_backend` and `boxes_available`.

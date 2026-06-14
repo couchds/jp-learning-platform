@@ -21,7 +21,7 @@ import requests
 import tkinter as tk
 from tkinter import messagebox, ttk
 from PIL import Image, ImageStat, ImageTk
-from pynput import keyboard
+from pynput import keyboard, mouse
 import mss
 
 
@@ -125,6 +125,9 @@ class OverlayApp:
         self.last_highlights: list[Highlight] = []
         self.last_image: Image.Image | None = None
         self.preview_photo: ImageTk.PhotoImage | None = None
+        self.screen_overlay: ScreenReviewOverlay | None = None
+        self.capture_sequence = 0
+        self.active_capture_id = 0
         self.term_vars: list[tk.BooleanVar] = []
         self.hotkey_listener: keyboard.GlobalHotKeys | None = None
 
@@ -172,7 +175,7 @@ class OverlayApp:
         ).pack(anchor=tk.W)
         ttk.Label(
             hero,
-            text="Press the hotkey, drag over Japanese text in any visible window, then save useful terms.",
+            text="Press the hotkey to scan the screen, review highlighted Japanese text, then save useful terms.",
             style="Hero.TLabel",
         ).pack(anchor=tk.W, pady=(6, 0))
 
@@ -199,7 +202,8 @@ class OverlayApp:
 
         action_frame = ttk.Frame(outer)
         action_frame.pack(fill=tk.X, pady=10)
-        ttk.Button(action_frame, text="Capture Region", command=self.capture_region).pack(side=tk.LEFT)
+        ttk.Button(action_frame, text="Scan Screen", command=self.scan_screen).pack(side=tk.LEFT)
+        ttk.Button(action_frame, text="Capture Region", command=self.capture_region).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Button(action_frame, text="Add Selected Terms", command=self.add_selected_terms).pack(side=tk.LEFT, padx=8)
         ttk.Label(action_frame, textvariable=self.resource_label).pack(side=tk.RIGHT)
 
@@ -284,7 +288,7 @@ class OverlayApp:
         return "+".join(converted) if converted else "<ctrl>+<shift>+o"
 
     def hotkey_capture(self) -> None:
-        self.root.after(0, self.capture_region)
+        self.root.after(0, self.scan_screen)
 
     def refresh_resources(self) -> None:
         self.status.set("Loading resources...")
@@ -328,12 +332,55 @@ class OverlayApp:
         self.resource_label.set(f"Tracking to: {resource.name}")
         self.save_config()
 
+    def next_capture_id(self) -> int:
+        self.capture_sequence += 1
+        self.active_capture_id = self.capture_sequence
+        return self.active_capture_id
+
+    def invalidate_capture(self) -> None:
+        self.capture_sequence += 1
+        self.active_capture_id = self.capture_sequence
+
+    def scan_screen(self) -> None:
+        if self.screen_overlay is not None:
+            self.screen_overlay.close(show_control_panel=False)
+        capture_id = self.next_capture_id()
+        self.root.withdraw()
+        self.status.set("Scanning screen...")
+        self.root.after(120, lambda: self.scan_screen_after_hide(capture_id))
+
+    def scan_screen_after_hide(self, capture_id: int) -> None:
+        if capture_id != self.active_capture_id:
+            return
+        try:
+            image = self.capture_screen()
+            status = "Running OCR on screen..."
+            if self.image_looks_blank(image):
+                status = "Running OCR... Capture looks blank; macOS may need Screen Recording permission."
+            self.screen_overlay = ScreenReviewOverlay(
+                self.root,
+                image,
+                self.close_screen_overlay,
+                self.add_terms_from_screen_overlay,
+                self.capture_region,
+            )
+            self.submit_ocr(image, status, capture_id, self.screen_overlay)
+        except Exception as exc:
+            self.root.deiconify()
+            messagebox.showerror("Screen scan failed", str(exc))
+            self.status.set(f"Screen scan failed: {exc}")
+
     def capture_region(self) -> None:
+        if self.screen_overlay is not None:
+            self.screen_overlay.close(show_control_panel=False)
+        capture_id = self.next_capture_id()
         self.root.withdraw()
         self.status.set("Drag a region to capture")
-        RegionSelector(self.root, self.on_region_selected)
+        RegionSelector(self.root, lambda rect: self.on_region_selected(rect, capture_id))
 
-    def on_region_selected(self, rect: dict[str, int] | None) -> None:
+    def on_region_selected(self, rect: dict[str, int] | None, capture_id: int) -> None:
+        if capture_id != self.active_capture_id:
+            return
         if rect is None:
             self.root.deiconify()
             self.status.set("Capture cancelled")
@@ -345,7 +392,7 @@ class OverlayApp:
             status = "Running OCR..."
             if self.image_looks_blank(image):
                 status = "Running OCR... Capture looks blank; macOS may need Screen Recording permission."
-            self.submit_ocr(image, status)
+            self.submit_ocr(image, status, capture_id)
         except Exception as exc:
             self.root.deiconify()
             messagebox.showerror("Capture failed", str(exc))
@@ -356,16 +403,48 @@ class OverlayApp:
             grabbed = screen.grab(rect)
             return Image.frombytes("RGB", grabbed.size, grabbed.rgb)
 
+    def capture_screen(self) -> Image.Image:
+        with mss.mss() as screen:
+            monitor = self.monitor_under_pointer(screen.monitors)
+            grabbed = screen.grab(monitor)
+            return Image.frombytes("RGB", grabbed.size, grabbed.rgb)
+
+    def monitor_under_pointer(self, monitors: list[dict[str, int]]) -> dict[str, int]:
+        pointer_x, pointer_y = mouse.Controller().position
+        for monitor in monitors[1:]:
+            left = monitor["left"]
+            top = monitor["top"]
+            if left <= pointer_x < left + monitor["width"] and top <= pointer_y < top + monitor["height"]:
+                return monitor
+
+        return monitors[1] if len(monitors) > 1 else monitors[0]
+
     def image_looks_blank(self, image: Image.Image) -> bool:
         extrema = ImageStat.Stat(image.convert("L")).extrema[0]
         return (extrema[1] - extrema[0]) < 4
 
-    def submit_ocr(self, image: Image.Image, status: str = "Running OCR...") -> None:
+    def submit_ocr(
+        self,
+        image: Image.Image,
+        status: str,
+        capture_id: int,
+        target_overlay: ScreenReviewOverlay | None = None,
+    ) -> None:
         self.status.set(status)
         api_url = self.api_url.get().rstrip("/")
-        threading.Thread(target=self.submit_ocr_worker, args=(api_url, image.copy()), daemon=True).start()
+        threading.Thread(
+            target=self.submit_ocr_worker,
+            args=(api_url, image.copy(), capture_id, target_overlay),
+            daemon=True,
+        ).start()
 
-    def submit_ocr_worker(self, api_url: str, image: Image.Image) -> None:
+    def submit_ocr_worker(
+        self,
+        api_url: str,
+        image: Image.Image,
+        capture_id: int,
+        target_overlay: ScreenReviewOverlay | None,
+    ) -> None:
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
         buffer.seek(0)
@@ -387,17 +466,21 @@ class OverlayApp:
                 if highlight is not None
             ]
             raw_text = str(ocr.get("rawText") or ocr.get("raw_text") or "")
-            self.root.after(0, lambda: self.apply_ocr_result(raw_text, terms, highlights, image))
+            self.root.after(0, lambda: self.apply_ocr_result(capture_id, target_overlay, raw_text, terms, highlights, image))
         except Exception as exc:
-            self.root.after(0, lambda exc=exc: self.show_ocr_error(exc))
+            self.root.after(0, lambda exc=exc: self.show_ocr_error(capture_id, target_overlay, exc))
 
     def apply_ocr_result(
         self,
+        capture_id: int,
+        target_overlay: ScreenReviewOverlay | None,
         raw_text: str,
         terms: list[Term],
         highlights: list[Highlight],
         image: Image.Image,
     ) -> None:
+        if capture_id != self.active_capture_id:
+            return
         self.last_terms = terms
         self.last_highlights = highlights
         self.last_image = image
@@ -406,9 +489,21 @@ class OverlayApp:
             self.status.set("No text found. Try a tighter crop, larger text, or the EasyOCR backend.")
         else:
             self.status.set(f"OCR complete: {len(self.last_terms)} terms, {len(self.last_highlights)} highlights")
+        if target_overlay is not None and target_overlay is self.screen_overlay:
+            target_overlay.apply_result(raw_text, terms, highlights)
 
-    def show_ocr_error(self, exc: Exception) -> None:
-        messagebox.showerror("OCR failed", str(exc))
+    def show_ocr_error(
+        self,
+        capture_id: int,
+        target_overlay: ScreenReviewOverlay | None,
+        exc: Exception,
+    ) -> None:
+        if capture_id != self.active_capture_id:
+            return
+        if target_overlay is not None and target_overlay is self.screen_overlay:
+            target_overlay.show_error(str(exc))
+        else:
+            messagebox.showerror("OCR failed", str(exc))
         self.status.set(f"OCR failed: {exc}")
 
     def render_result(
@@ -484,7 +579,7 @@ class OverlayApp:
             return
 
         selected = [
-            term.to_api()
+            term
             for term, var in zip(self.last_terms, self.term_vars)
             if var.get()
         ]
@@ -492,20 +587,35 @@ class OverlayApp:
             self.status.set("No terms selected")
             return
 
+        self.add_terms(selected)
+
+    def add_terms_from_screen_overlay(self, terms: list[Term], overlay: ScreenReviewOverlay) -> bool:
+        if self.selected_resource_id is None:
+            overlay.finish_add("Select a resource in the control panel before adding terms.")
+            return False
+        return self.add_terms(terms, overlay)
+
+    def add_terms(self, terms: list[Term], overlay: ScreenReviewOverlay | None = None) -> bool:
         resource_id = self.selected_resource_id
+        if resource_id is None:
+            return False
+
+        selected = [term.to_api() for term in terms]
         api_url = self.api_url.get().rstrip("/")
         self.status.set("Adding selected terms...")
         threading.Thread(
             target=self.add_selected_terms_worker,
-            args=(api_url, resource_id, selected),
+            args=(api_url, resource_id, selected, overlay),
             daemon=True,
         ).start()
+        return True
 
     def add_selected_terms_worker(
         self,
         api_url: str,
         resource_id: int,
         selected: list[dict[str, Any]],
+        overlay: ScreenReviewOverlay | None,
     ) -> None:
         try:
             response = requests.post(
@@ -514,9 +624,20 @@ class OverlayApp:
                 timeout=20,
             )
             response.raise_for_status()
-            self.root.after(0, lambda: self.status.set(f"Added {len(selected)} terms to tracker"))
+            self.root.after(0, lambda: self.finish_add_terms(overlay, f"Added {len(selected)} terms to tracker"))
         except Exception as exc:
-            self.root.after(0, lambda exc=exc: self.status.set(f"Could not add terms: {exc}"))
+            self.root.after(0, lambda exc=exc: self.finish_add_terms(overlay, f"Could not add terms: {exc}"))
+
+    def finish_add_terms(self, overlay: ScreenReviewOverlay | None, message: str) -> None:
+        self.status.set(message)
+        if overlay is not None and overlay is self.screen_overlay:
+            overlay.finish_add(message)
+
+    def close_screen_overlay(self, show_control_panel: bool = True) -> None:
+        self.screen_overlay = None
+        self.invalidate_capture()
+        if show_control_panel:
+            self.root.deiconify()
 
     def run(self) -> None:
         self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
@@ -527,6 +648,211 @@ class OverlayApp:
         if self.hotkey_listener is not None:
             self.hotkey_listener.stop()
         self.root.destroy()
+
+
+class ScreenReviewOverlay:
+    def __init__(
+        self,
+        root: tk.Tk,
+        image: Image.Image,
+        on_close,
+        on_add_selected,
+        on_precise_region,
+    ) -> None:
+        self.root = root
+        self.image = image
+        self.on_close = on_close
+        self.on_add_selected = on_add_selected
+        self.on_precise_region = on_precise_region
+        self.highlights: list[Highlight] = []
+        self.terms: list[Term] = []
+        self.photo: ImageTk.PhotoImage | None = None
+        self.image_offset = (0, 0)
+        self.image_scale = 1.0
+        self.loaded = False
+        self.saving = False
+
+        self.window = tk.Toplevel(root)
+        self.window.title("Yomunami Screen OCR")
+        self.window.configure(bg="#10100f")
+        self.window.attributes("-fullscreen", True)
+        self.window.attributes("-topmost", True)
+        self.window.protocol("WM_DELETE_WINDOW", self.close)
+        self.window.bind("<Escape>", lambda _event: self.close())
+        self.window.bind("<Return>", lambda _event: self.add_selected())
+
+        self.status = tk.StringVar(value="Scanning screen...")
+        self.build_ui()
+        self.window.after(50, self.render_screen)
+
+    def build_ui(self) -> None:
+        topbar = tk.Frame(self.window, bg="#181712", height=48)
+        topbar.pack(fill=tk.X, side=tk.TOP)
+        topbar.pack_propagate(False)
+
+        tk.Label(
+            topbar,
+            text="Yomunami OCR",
+            bg="#181712",
+            fg="#f8efe0",
+            font=("TkDefaultFont", 16, "bold"),
+        ).pack(side=tk.LEFT, padx=16)
+        tk.Label(topbar, textvariable=self.status, bg="#181712", fg="#d4c8b5").pack(side=tk.LEFT, padx=10)
+        tk.Button(topbar, text="Close", command=self.close).pack(side=tk.RIGHT, padx=(6, 14), pady=8)
+        tk.Button(topbar, text="Precise Region", command=self.precise_region).pack(side=tk.RIGHT, padx=6, pady=8)
+        tk.Button(topbar, text="Add Selected", command=self.add_selected).pack(side=tk.RIGHT, padx=6, pady=8)
+
+        body = tk.Frame(self.window, bg="#080807")
+        body.pack(fill=tk.BOTH, expand=True)
+
+        self.canvas = tk.Canvas(body, bg="#080807", highlightthickness=0)
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.canvas.bind("<Configure>", lambda _event: self.render_screen())
+
+        side = tk.Frame(body, bg="#151411", width=320)
+        side.pack(side=tk.RIGHT, fill=tk.Y)
+        side.pack_propagate(False)
+
+        tk.Label(
+            side,
+            text="Terms",
+            bg="#151411",
+            fg="#f8efe0",
+            font=("TkDefaultFont", 13, "bold"),
+        ).pack(anchor=tk.W, padx=12, pady=(12, 4))
+        self.terms_list = tk.Listbox(
+            side,
+            selectmode=tk.MULTIPLE,
+            bg="#201f1a",
+            fg="#f8efe0",
+            selectbackground="#3f6b62",
+            selectforeground="#ffffff",
+            highlightthickness=0,
+            activestyle="none",
+        )
+        self.terms_list.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
+
+        tk.Label(
+            side,
+            text="OCR text",
+            bg="#151411",
+            fg="#f8efe0",
+            font=("TkDefaultFont", 13, "bold"),
+        ).pack(anchor=tk.W, padx=12, pady=(0, 4))
+        self.raw_text = tk.Text(
+            side,
+            height=9,
+            wrap=tk.WORD,
+            bg="#201f1a",
+            fg="#f8efe0",
+            insertbackground="#f8efe0",
+            highlightthickness=0,
+        )
+        self.raw_text.pack(fill=tk.X, padx=12, pady=(0, 12))
+        self.raw_text.insert("1.0", "Scanning...")
+
+    def apply_result(self, raw_text: str, terms: list[Term], highlights: list[Highlight]) -> None:
+        self.loaded = True
+        self.terms = terms
+        self.highlights = highlights
+        self.status.set(f"{len(highlights)} highlights, {len(terms)} terms")
+        self.raw_text.delete("1.0", tk.END)
+        self.raw_text.insert("1.0", raw_text or "No text found.")
+        self.terms_list.delete(0, tk.END)
+        for index, term in enumerate(self.terms):
+            self.terms_list.insert(tk.END, f"{term.text}  [{term.term_type}]")
+            if term.term_type in {"kanji", "word", "phrase"}:
+                self.terms_list.selection_set(index)
+        self.render_screen()
+
+    def show_error(self, message: str) -> None:
+        self.loaded = True
+        self.status.set(f"OCR failed: {message}")
+        self.raw_text.delete("1.0", tk.END)
+        self.raw_text.insert("1.0", message)
+        self.render_screen()
+
+    def finish_add(self, message: str) -> None:
+        self.saving = False
+        if self.window.winfo_exists():
+            self.status.set(message)
+
+    def render_screen(self) -> None:
+        width = max(self.canvas.winfo_width(), 1)
+        height = max(self.canvas.winfo_height(), 1)
+        self.canvas.delete("all")
+
+        scale = min(width / self.image.width, height / self.image.height, 1.0)
+        preview_size = (max(1, int(self.image.width * scale)), max(1, int(self.image.height * scale)))
+        preview = self.image.resize(preview_size)
+        self.photo = ImageTk.PhotoImage(preview)
+        offset_x = int((width - preview_size[0]) / 2)
+        offset_y = int((height - preview_size[1]) / 2)
+        self.image_offset = (offset_x, offset_y)
+        self.image_scale = scale
+
+        self.canvas.create_image(offset_x, offset_y, anchor=tk.NW, image=self.photo)
+
+        for highlight in self.highlights:
+            self.draw_highlight(highlight)
+
+        if not self.loaded:
+            self.canvas.create_rectangle(20, 20, 260, 72, fill="#181712", outline="#4b463c")
+            self.canvas.create_text(36, 36, anchor=tk.NW, text="Scanning screen...", fill="#f8efe0")
+        elif not self.highlights:
+            self.canvas.create_rectangle(20, 20, 420, 78, fill="#181712", outline="#d65f5f")
+            self.canvas.create_text(
+                36,
+                36,
+                anchor=tk.NW,
+                text="No OCR highlights found. Try Precise Region for a tighter crop.",
+                fill="#ffd166",
+            )
+
+    def draw_highlight(self, highlight: Highlight) -> None:
+        x_offset, y_offset = self.image_offset
+        scale = self.image_scale
+        bbox = highlight.bbox
+        x1 = x_offset + bbox["x"] * scale
+        y1 = y_offset + bbox["y"] * scale
+        x2 = x_offset + (bbox["x"] + bbox["width"]) * scale
+        y2 = y_offset + (bbox["y"] + bbox["height"]) * scale
+        color = "#ffd166" if highlight.element_type == "kanji" else "#50e3c2"
+        self.canvas.create_rectangle(x1, y1, x2, y2, outline=color, width=2)
+        if highlight.text and (x2 - x1) > 24:
+            self.canvas.create_text(
+                x1 + 3,
+                max(y_offset + 3, y1 - 15),
+                anchor=tk.NW,
+                text=highlight.text,
+                fill=color,
+                font=("TkDefaultFont", 10, "bold"),
+            )
+
+    def selected_terms(self) -> list[Term]:
+        return [self.terms[index] for index in self.terms_list.curselection()]
+
+    def add_selected(self) -> None:
+        if self.saving:
+            self.status.set("Already adding selected terms...")
+            return
+        selected = self.selected_terms()
+        if not selected:
+            self.status.set("No terms selected")
+            return
+        accepted = self.on_add_selected(selected, self)
+        if accepted:
+            self.saving = True
+            self.status.set(f"Adding {len(selected)} selected terms...")
+
+    def precise_region(self) -> None:
+        self.close(show_control_panel=False)
+        self.on_precise_region()
+
+    def close(self, show_control_panel: bool = True) -> None:
+        if self.window.winfo_exists():
+            self.window.destroy()
+        self.on_close(show_control_panel)
 
 
 class RegionSelector:

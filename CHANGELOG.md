@@ -4,6 +4,12 @@ All notable changes to this project will be documented here.
 
 This project follows semantic versioning.
 
+## 0.5.0 - 2026-06-14
+
+- Make the desktop overlay hotkey scan the current screen immediately instead of opening region selection.
+- Add a full-screen OCR review overlay with screenshot-backed highlights, OCR text, selectable term candidates, and add-to-tracker controls.
+- Keep precise region capture available for noisy pages, stylized game fonts, and dense layouts.
+
 ## 0.4.1 - 2026-06-14
 
 - Preserve EasyOCR bounding boxes through the local OCR API.
