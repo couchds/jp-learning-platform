@@ -11,6 +11,7 @@ import type {
   Resource,
   ResourceDetail,
   ResourceTerm,
+  RuntimeDoctor,
   ServiceHealth,
   Word
 } from "./types";
@@ -58,6 +59,7 @@ export const api = {
       })
     );
   },
+  runtimeDoctor: () => request<RuntimeDoctor>("/api/runtime/doctor"),
   resources: (query = "") => request<Page<Resource>>(`/api/resources${query}`),
   createResource: (resource: {
     name: string;
@@ -100,7 +102,14 @@ export const api = {
     }),
   desktopOverlayStatus: () => request<DesktopOverlayStatus>("/api/desktop/overlay/status"),
   launchDesktopOverlay: () =>
-    request<{ launched: boolean; alreadyRequested?: boolean; pid?: number; overlay: string; python?: string }>(
+    request<{
+      launched: boolean;
+      alreadyRequested?: boolean;
+      pid?: number;
+      overlay: string;
+      python?: string;
+      webUrl?: string;
+    }>(
       "/api/desktop/overlay/launch",
       {
         method: "POST",

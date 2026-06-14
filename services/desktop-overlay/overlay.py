@@ -27,6 +27,7 @@ import mss
 
 CONFIG_PATH = Path.home() / ".yomunami-overlay.json"
 DEFAULT_API_URL = os.environ.get("YOMUNAMI_API_URL", "http://127.0.0.1:3001")
+DEFAULT_WEB_URL = os.environ.get("YOMUNAMI_WEB_URL", "http://127.0.0.1:5173")
 DEFAULT_HOTKEY = "ctrl+shift+o"
 
 
@@ -80,6 +81,7 @@ class OverlayApp:
 
         self.config = self.load_config()
         self.api_url = tk.StringVar(value=self.config.get("api_url", DEFAULT_API_URL))
+        self.web_url = tk.StringVar(value=os.environ.get("YOMUNAMI_WEB_URL") or self.config.get("web_url", DEFAULT_WEB_URL))
         self.hotkey = tk.StringVar(value=self.config.get("hotkey", DEFAULT_HOTKEY))
         self.status = tk.StringVar(value="Ready")
         self.resource_label = tk.StringVar(value="No resource selected")
@@ -91,8 +93,7 @@ class OverlayApp:
         self.hotkey_listener: keyboard.GlobalHotKeys | None = None
 
         self.build_ui()
-        self.refresh_resources()
-        self.start_hotkey_listener()
+        self.root.after(50, self.startup)
 
     def load_config(self) -> dict[str, Any]:
         if CONFIG_PATH.exists():
@@ -107,6 +108,7 @@ class OverlayApp:
             json.dumps(
                 {
                     "api_url": self.api_url.get().rstrip("/"),
+                    "web_url": self.web_url.get().rstrip("/"),
                     "hotkey": self.hotkey.get(),
                     "resource_id": self.selected_resource_id,
                 },
@@ -115,13 +117,33 @@ class OverlayApp:
         )
 
     def build_ui(self) -> None:
+        self.root.configure(bg="#f6f4ef")
+        self.style = ttk.Style(self.root)
+        self.style.configure("Hero.TFrame", background="#20201d")
+        self.style.configure("Hero.TLabel", background="#20201d", foreground="#fffaf1")
+        self.style.configure("Muted.TLabel", foreground="#625a4d")
+
         outer = ttk.Frame(self.root, padding=18)
         outer.pack(fill=tk.BOTH, expand=True)
 
+        hero = ttk.Frame(outer, padding=16, style="Hero.TFrame")
+        hero.pack(fill=tk.X, pady=(0, 14))
+        ttk.Label(
+            hero,
+            text="Yomunami OCR Overlay",
+            font=("TkDefaultFont", 20, "bold"),
+            style="Hero.TLabel",
+        ).pack(anchor=tk.W)
+        ttk.Label(
+            hero,
+            text="Press the hotkey, drag over Japanese text in any visible window, then save useful terms.",
+            style="Hero.TLabel",
+        ).pack(anchor=tk.W, pady=(6, 0))
+
         title = ttk.Frame(outer)
-        title.pack(fill=tk.X, pady=(0, 14))
-        ttk.Label(title, text="Yomunami OCR Overlay", font=("TkDefaultFont", 18, "bold")).pack(side=tk.LEFT)
-        ttk.Button(title, text="Open Web App", command=lambda: webbrowser.open("http://127.0.0.1:5173")).pack(side=tk.RIGHT)
+        title.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(title, text="Control panel", font=("TkDefaultFont", 14, "bold")).pack(side=tk.LEFT)
+        ttk.Button(title, text="Open Web App", command=self.open_web_app).pack(side=tk.RIGHT)
 
         config_frame = ttk.LabelFrame(outer, text="Local connection", padding=12)
         config_frame.pack(fill=tk.X, pady=8)
@@ -163,13 +185,32 @@ class OverlayApp:
         self.terms_canvas.configure(yscrollcommand=scrollbar.set)
         self.terms_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        ttk.Label(
+            self.terms_frame,
+            text="No capture yet. Use Capture Region or press the hotkey.",
+            style="Muted.TLabel",
+        ).pack(anchor=tk.W, pady=6)
 
         ttk.Label(self.root, textvariable=self.status, relief=tk.SUNKEN, anchor=tk.W).pack(side=tk.BOTTOM, fill=tk.X)
 
+    def startup(self) -> None:
+        self.root.update_idletasks()
+        try:
+            self.start_hotkey_listener()
+        except Exception as exc:
+            self.status.set(f"Hotkey listener unavailable: {exc}")
+        self.refresh_resources()
+
     def apply_settings(self) -> None:
         self.save_config()
-        self.start_hotkey_listener()
-        self.status.set(f"Hotkey set to {self.hotkey.get()}")
+        try:
+            self.start_hotkey_listener()
+            self.status.set(f"Hotkey set to {self.hotkey.get()}")
+        except Exception as exc:
+            self.status.set(f"Hotkey listener unavailable: {exc}")
+
+    def open_web_app(self) -> None:
+        webbrowser.open(self.web_url.get().rstrip("/") or DEFAULT_WEB_URL)
 
     def start_hotkey_listener(self) -> None:
         if self.hotkey_listener is not None:
@@ -201,28 +242,36 @@ class OverlayApp:
 
     def refresh_resources(self) -> None:
         self.status.set("Loading resources...")
+        api_url = self.api_url.get().rstrip("/")
+        threading.Thread(target=self.load_resources_worker, args=(api_url,), daemon=True).start()
+
+    def load_resources_worker(self, api_url: str) -> None:
         try:
-            response = requests.get(f"{self.api_url.get().rstrip('/')}/api/resources?limit=200", timeout=10)
+            response = requests.get(f"{api_url}/api/resources?limit=200", timeout=10)
             response.raise_for_status()
-            self.resources = [
+            resources = [
                 Resource(id=int(item["id"]), name=str(item["name"]), type=str(item["type"]))
                 for item in response.json().get("items", [])
             ]
-            labels = [f"{resource.name} ({resource.type})" for resource in self.resources]
-            self.resource_combo["values"] = labels
-            selected_index = next(
-                (index for index, resource in enumerate(self.resources) if resource.id == self.selected_resource_id),
-                0 if self.resources else -1,
-            )
-            if selected_index >= 0:
-                self.resource_combo.current(selected_index)
-                self.selected_resource_id = self.resources[selected_index].id
-                self.resource_label.set(f"Tracking to: {self.resources[selected_index].name}")
-            else:
-                self.resource_label.set("Create a resource in the web app first")
-            self.status.set("Resources loaded")
+            self.root.after(0, lambda: self.apply_resources(resources))
         except Exception as exc:
-            self.status.set(f"Could not load resources: {exc}")
+            self.root.after(0, lambda exc=exc: self.status.set(f"Could not load resources: {exc}"))
+
+    def apply_resources(self, resources: list[Resource]) -> None:
+        self.resources = resources
+        labels = [f"{resource.name} ({resource.type})" for resource in self.resources]
+        self.resource_combo["values"] = labels
+        selected_index = next(
+            (index for index, resource in enumerate(self.resources) if resource.id == self.selected_resource_id),
+            0 if self.resources else -1,
+        )
+        if selected_index >= 0:
+            self.resource_combo.current(selected_index)
+            self.selected_resource_id = self.resources[selected_index].id
+            self.resource_label.set(f"Tracking to: {self.resources[selected_index].name}")
+        else:
+            self.resource_label.set("Create a resource in the web app first")
+        self.status.set("Resources loaded")
 
     def on_resource_select(self, _event: object) -> None:
         index = self.resource_combo.current()
@@ -260,20 +309,34 @@ class OverlayApp:
 
     def submit_ocr(self, image: Image.Image) -> None:
         self.status.set("Running OCR...")
+        api_url = self.api_url.get().rstrip("/")
+        threading.Thread(target=self.submit_ocr_worker, args=(api_url, image), daemon=True).start()
+
+    def submit_ocr_worker(self, api_url: str, image: Image.Image) -> None:
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
         buffer.seek(0)
         files = {"image": ("capture.png", buffer, "image/png")}
-        api_url = self.api_url.get().rstrip("/")
 
-        response = requests.post(f"{api_url}/api/ocr/image", files=files, timeout=120)
-        response.raise_for_status()
-        payload = response.json()
-        ocr = payload.get("ocr", payload)
-        terms = ocr.get("terms", [])
-        self.last_terms = [Term.from_payload(term) for term in terms if term.get("text")]
-        self.render_result(str(ocr.get("rawText") or ocr.get("raw_text") or ""), self.last_terms)
+        try:
+            response = requests.post(f"{api_url}/api/ocr/image", files=files, timeout=120)
+            response.raise_for_status()
+            payload = response.json()
+            ocr = payload.get("ocr", payload)
+            terms = [Term.from_payload(term) for term in ocr.get("terms", []) if term.get("text")]
+            raw_text = str(ocr.get("rawText") or ocr.get("raw_text") or "")
+            self.root.after(0, lambda: self.apply_ocr_result(raw_text, terms))
+        except Exception as exc:
+            self.root.after(0, lambda exc=exc: self.show_ocr_error(exc))
+
+    def apply_ocr_result(self, raw_text: str, terms: list[Term]) -> None:
+        self.last_terms = terms
+        self.render_result(raw_text, self.last_terms)
         self.status.set(f"OCR complete: {len(self.last_terms)} term candidates")
+
+    def show_ocr_error(self, exc: Exception) -> None:
+        messagebox.showerror("OCR failed", str(exc))
+        self.status.set(f"OCR failed: {exc}")
 
     def render_result(self, raw_text: str, terms: list[Term]) -> None:
         self.raw_text.delete("1.0", tk.END)
@@ -307,13 +370,31 @@ class OverlayApp:
             self.status.set("No terms selected")
             return
 
-        response = requests.post(
-            f"{self.api_url.get().rstrip('/')}/api/resources/{self.selected_resource_id}/terms/bulk",
-            json={"terms": selected},
-            timeout=20,
-        )
-        response.raise_for_status()
-        self.status.set(f"Added {len(selected)} terms to tracker")
+        resource_id = self.selected_resource_id
+        api_url = self.api_url.get().rstrip("/")
+        self.status.set("Adding selected terms...")
+        threading.Thread(
+            target=self.add_selected_terms_worker,
+            args=(api_url, resource_id, selected),
+            daemon=True,
+        ).start()
+
+    def add_selected_terms_worker(
+        self,
+        api_url: str,
+        resource_id: int,
+        selected: list[dict[str, Any]],
+    ) -> None:
+        try:
+            response = requests.post(
+                f"{api_url}/api/resources/{resource_id}/terms/bulk",
+                json={"terms": selected},
+                timeout=20,
+            )
+            response.raise_for_status()
+            self.root.after(0, lambda: self.status.set(f"Added {len(selected)} terms to tracker"))
+        except Exception as exc:
+            self.root.after(0, lambda exc=exc: self.status.set(f"Could not add terms: {exc}"))
 
     def run(self) -> None:
         self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
