@@ -1,0 +1,22 @@
+{
+  "name": "jp-learning-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first Japanese learning platform for resources, vocabulary, kanji, OCR, and pronunciation practice.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "node -e \"console.log('No app workspaces yet.')\"",
+    "check": "node -e \"console.log('No app workspaces yet.')\"",
+    "dev": "node -e \"console.log('Add an app workspace before running dev.')\"",
+    "format": "node -e \"console.log('No app workspaces yet.')\"",
+    "test": "node -e \"console.log('No app workspaces yet.')\""
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
