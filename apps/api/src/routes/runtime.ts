@@ -22,6 +22,7 @@ runtimeRouter.get(
   "/doctor",
   asyncHandler(async (_req, res) => {
     const checks: DoctorCheck[] = [
+      overlayAppBundleCheck(),
       overlayScriptCheck(),
       overlayPythonCheck(),
       overlayImportCheck(),
@@ -45,6 +46,17 @@ runtimeRouter.get(
   })
 );
 
+function overlayAppBundleCheck(): DoctorCheck {
+  const exists = fs.existsSync(config.overlayAppExecutablePath);
+  return {
+    id: "overlay-app-bundle",
+    label: "Desktop overlay macOS app",
+    status: exists ? "ok" : "warn",
+    detail: exists ? "Installed as Yomunami OCR Overlay.app" : "Not built; browser launcher will use Python fallback",
+    action: exists ? undefined : "Run: npm run build:overlay:macos"
+  };
+}
+
 function overlayScriptCheck(): DoctorCheck {
   const exists = fs.existsSync(config.overlayScriptPath);
   return {
@@ -57,17 +69,29 @@ function overlayScriptCheck(): DoctorCheck {
 }
 
 function overlayPythonCheck(): DoctorCheck {
+  const hasAppBundle = fs.existsSync(config.overlayAppExecutablePath);
   const hasVenv = fs.existsSync(config.overlayPythonPath);
   return {
     id: "overlay-python",
     label: "Overlay Python runtime",
-    status: hasVenv ? "ok" : "warn",
-    detail: hasVenv ? "Using services/desktop-overlay/.venv" : "Falling back to system python3",
-    action: hasVenv ? undefined : "Create the overlay venv and install services/desktop-overlay/requirements.txt."
+    status: hasVenv || hasAppBundle ? "ok" : "warn",
+    detail: hasAppBundle
+      ? "Packaged app bundle is available"
+      : hasVenv ? "Using services/desktop-overlay/.venv" : "Falling back to system python3",
+    action: hasVenv || hasAppBundle ? undefined : "Create the overlay venv and install services/desktop-overlay/requirements.txt."
   };
 }
 
 function overlayImportCheck(): DoctorCheck {
+  if (fs.existsSync(config.overlayAppExecutablePath)) {
+    return {
+      id: "overlay-imports",
+      label: "Overlay Python packages",
+      status: "ok",
+      detail: "Packaged app bundle includes overlay runtime dependencies"
+    };
+  }
+
   const python = fs.existsSync(config.overlayPythonPath) ? config.overlayPythonPath : "python3";
   const result = spawnSync(
     python,
@@ -165,17 +189,20 @@ async function serviceCheck(service: string, baseUrl: string): Promise<DoctorChe
 }
 
 function macPermissionHint(): DoctorCheck {
+  const permissionTarget = fs.existsSync(config.overlayAppExecutablePath)
+    ? "Yomunami OCR Overlay.app"
+    : "Terminal or Python";
   return {
     id: "mac-permissions",
     label: "macOS screen permissions",
     status: process.platform === "darwin" ? "warn" : "ok",
     detail:
       process.platform === "darwin"
-        ? "macOS may require Accessibility and Screen Recording permissions for the Python or Terminal process."
+        ? `macOS may require Accessibility and Screen Recording permissions for ${permissionTarget}.`
         : "No macOS permissions needed on this platform.",
     action:
       process.platform === "darwin"
-        ? "Open System Settings > Privacy & Security and allow Accessibility and Screen Recording for Terminal or Python."
+        ? `Open System Settings > Privacy & Security and allow Accessibility and Screen Recording for ${permissionTarget}.`
         : undefined
   };
 }

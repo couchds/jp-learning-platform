@@ -138,6 +138,8 @@ export const api = {
       alreadyRequested?: boolean;
       pid?: number;
       overlay: string;
+      launchTarget?: "app-bundle" | "python";
+      launchTargetDetail?: string;
       python?: string;
       webUrl?: string;
     }>(

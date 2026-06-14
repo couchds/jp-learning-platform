@@ -704,6 +704,12 @@ function CaptureView({
     : `The overlay and screenshot uploader both send images to the local OCR service at ${
         ocrService.data?.url ?? "http://127.0.0.1:5100"
       }.`;
+  const overlayRuntime = overlay.data?.launchTarget === "app-bundle"
+    ? "Yomunami app"
+    : overlay.data?.python ?? "python";
+  const overlayPermissionTarget = overlay.data?.launchTarget === "app-bundle"
+    ? "Yomunami OCR Overlay.app"
+    : "the terminal or Python executable that starts the overlay";
 
   return (
     <section className="capture-layout">
@@ -714,7 +720,7 @@ function CaptureView({
             {overlay.loading
               ? "checking"
               : `${overlay.data?.available ? "installed" : "missing"}${
-                  overlay.data?.python ? ` · ${overlay.data.python}` : ""
+                  overlayRuntime ? ` · ${overlayRuntime}` : ""
                 }`}
           </span>
         </div>
@@ -723,8 +729,8 @@ function CaptureView({
           <div>
             <strong>Capture Japanese text from any visible window.</strong>
             <p>
-              Launch the local overlay, select a resource, press the hotkey, then drag over game,
-              emulator, browser, or document text.
+              Launch the local overlay, select a resource, then press the hotkey over a game,
+              emulator, browser, or document. Use tighter region selection when the screen is dense.
             </p>
           </div>
         </div>
@@ -754,8 +760,7 @@ function CaptureView({
           <strong>ctrl+shift+o</strong>
         </div>
         <p className="helper-text">
-          On macOS, Screen Recording and Accessibility permissions may be required for the terminal or
-          Python executable that starts the overlay.
+          On macOS, grant Screen Recording and Accessibility permissions to {overlayPermissionTarget}.
         </p>
       </div>
 

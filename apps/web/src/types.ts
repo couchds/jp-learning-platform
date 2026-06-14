@@ -175,6 +175,9 @@ export type RecognitionResult = {
 export type DesktopOverlayStatus = {
   available: boolean;
   overlay: string;
+  appBundle?: "installed" | "missing";
+  launchTarget?: "app-bundle" | "python";
+  launchTargetDetail?: string;
   python?: "venv" | "system";
   apiUrl: string;
   webUrl?: string;
