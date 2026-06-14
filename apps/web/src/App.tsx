@@ -956,6 +956,7 @@ function TrackerView({ onChange }: { onChange: () => void }) {
 }
 
 function QuizView() {
+  const advancing = useRef(false);
   const [resources, setResources] = useState<Resource[]>([]);
   const [selectedResourceId, setSelectedResourceId] = useState<number | null>(null);
   const [deck, setDeck] = useState<QuizQuestion[]>([]);
@@ -1033,7 +1034,7 @@ function QuizView() {
   }
 
   function checkAnswer() {
-    if (submitting) {
+    if (submitting || advancing.current) {
       return;
     }
 
@@ -1044,7 +1045,7 @@ function QuizView() {
   }
 
   async function advance() {
-    if (submitting) {
+    if (submitting || advancing.current) {
       return;
     }
 
@@ -1053,12 +1054,16 @@ function QuizView() {
       return;
     }
 
+    advancing.current = true;
     const nextAnswers = [...answered, currentAnswer];
     if (index < deck.length - 1) {
       setAnswered(nextAnswers);
       setIndex((current) => current + 1);
       setAnswer("");
       setFeedback(null);
+      window.setTimeout(() => {
+        advancing.current = false;
+      }, 0);
       return;
     }
 
@@ -1071,6 +1076,7 @@ function QuizView() {
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not save quiz session");
     } finally {
+      advancing.current = false;
       setSubmitting(false);
     }
   }
