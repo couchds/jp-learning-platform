@@ -9,3 +9,4 @@ This project follows semantic versioning.
 - Start local-first rebuild from an empty repository.
 - Define repository layout, privacy constraints, and documentation conventions.
 - Add the local TypeScript API with SQLite persistence, local upload storage, and localhost OCR/recognition/speech service proxies.
+- Add local Python OCR, KanjiDraw recognition, and speech-model services.
