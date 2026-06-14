@@ -33,6 +33,14 @@ speechRouter.get(
 );
 
 speechRouter.post(
+  "/export-data",
+  asyncHandler(async (req, res) => {
+    const result = await postJson<unknown>(`${config.speechServiceUrl}/export-data`, req.body);
+    res.json(result);
+  })
+);
+
+speechRouter.post(
   "/train",
   asyncHandler(async (req, res) => {
     const result = await postJson<unknown>(`${config.speechServiceUrl}/train`, req.body);

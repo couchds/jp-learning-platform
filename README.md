@@ -43,7 +43,7 @@ npm run dev --workspace @jp-learning-platform/api
 
 The API listens on `http://127.0.0.1:3001` by default, creates a SQLite database at `data/local/app.sqlite`, and stores uploads under `uploads/`.
 
-Once the web app lands, the expected full workflow will be:
+Run the web app and API together:
 
 ```bash
 npm run dev
@@ -116,6 +116,7 @@ Downloaded dictionary files should stay outside git. Import scripts will documen
 - `POST /api/recognize`
 - `GET /api/speech/health`
 - `GET /api/speech/info`
+- `POST /api/speech/export-data`
 - `POST /api/speech/train`
 - `POST /api/speech/predict`
 - `POST /api/speech/recordings`
