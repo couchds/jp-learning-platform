@@ -11,19 +11,21 @@ let lastOverlayLaunch: { pid: number | undefined; launchedAt: number } | null = 
 
 desktopRouter.get(
   "/overlay/status",
-  asyncHandler((_req, res) => {
+  asyncHandler((req, res) => {
+    const webUrl = req.get("origin") ?? config.webAppUrl;
     res.json({
       available: fs.existsSync(config.overlayScriptPath),
       overlay: "desktop-overlay",
       python: fs.existsSync(config.overlayPythonPath) ? "venv" : "system",
-      apiUrl: `http://${config.host}:${config.port}`
+      apiUrl: `http://${config.host}:${config.port}`,
+      webUrl
     });
   })
 );
 
 desktopRouter.post(
   "/overlay/launch",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     if (!fs.existsSync(config.overlayScriptPath)) {
       throw new HttpError(404, "Desktop overlay script is not installed");
     }
@@ -34,19 +36,22 @@ desktopRouter.post(
         launched: false,
         alreadyRequested: true,
         pid: lastOverlayLaunch.pid,
-        overlay: "desktop-overlay"
+        overlay: "desktop-overlay",
+        webUrl: req.get("origin") ?? config.webAppUrl
       });
       return;
     }
 
     const pythonCommand = fs.existsSync(config.overlayPythonPath) ? config.overlayPythonPath : "python3";
+    const webUrl = req.get("origin") ?? config.webAppUrl;
     const child = spawn(pythonCommand, [config.overlayScriptPath], {
       cwd: config.repoRoot,
       detached: true,
       stdio: ["ignore", "ignore", "pipe"],
       env: {
         ...process.env,
-        YOMUNAMI_API_URL: `http://${config.host}:${config.port}`
+        YOMUNAMI_API_URL: `http://${config.host}:${config.port}`,
+        YOMUNAMI_WEB_URL: webUrl
       }
     });
 
@@ -108,7 +113,8 @@ desktopRouter.post(
       launched: true,
       pid: child.pid,
       overlay: "desktop-overlay",
-      python: fs.existsSync(config.overlayPythonPath) ? "venv" : "system"
+      python: fs.existsSync(config.overlayPythonPath) ? "venv" : "system",
+      webUrl
     });
   })
 );

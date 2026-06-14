@@ -57,7 +57,8 @@ export const config = {
   recognitionServiceUrl: process.env.RECOGNITION_SERVICE_URL ?? "http://127.0.0.1:5000",
   speechServiceUrl: process.env.SPEECH_SERVICE_URL ?? "http://127.0.0.1:5200",
   overlayScriptPath: overlayScriptPathFromEnv(process.env.OVERLAY_SCRIPT_PATH),
-  overlayPythonPath: process.env.OVERLAY_PYTHON_PATH ?? defaultOverlayPythonPath
+  overlayPythonPath: process.env.OVERLAY_PYTHON_PATH ?? defaultOverlayPythonPath,
+  webAppUrl: process.env.WEB_APP_URL ?? "http://127.0.0.1:5173"
 };
 
 export type AppConfig = typeof config;

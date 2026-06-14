@@ -112,6 +112,21 @@ export type ServiceHealth = {
   error?: string;
 };
 
+export type RuntimeDoctorStatus = "ok" | "warn" | "error";
+
+export type RuntimeDoctorCheck = {
+  id: string;
+  label: string;
+  status: RuntimeDoctorStatus;
+  detail: string;
+  action?: string;
+};
+
+export type RuntimeDoctor = {
+  summary: RuntimeDoctorStatus;
+  checks: RuntimeDoctorCheck[];
+};
+
 export type OcrResult = {
   rawText: string;
   elements: Array<{
@@ -134,6 +149,7 @@ export type DesktopOverlayStatus = {
   overlay: string;
   python?: "venv" | "system";
   apiUrl: string;
+  webUrl?: string;
 };
 
 export type QuizQuestion = {

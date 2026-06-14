@@ -28,6 +28,7 @@ import {
   Target,
   Trophy,
   Upload,
+  Wrench,
   X
 } from "lucide-react";
 import { api } from "./api";
@@ -43,11 +44,22 @@ import type {
   Resource,
   ResourceDetail,
   ResourceTerm,
+  RuntimeDoctor,
   ServiceHealth,
   Word
 } from "./types";
 
-type View = "home" | "dashboard" | "capture" | "resources" | "tracker" | "quiz" | "lookup" | "draw" | "speech";
+type View =
+  | "home"
+  | "dashboard"
+  | "capture"
+  | "runtime"
+  | "resources"
+  | "tracker"
+  | "quiz"
+  | "lookup"
+  | "draw"
+  | "speech";
 
 type Loadable<T> = {
   data: T | null;
@@ -71,6 +83,7 @@ const navItems: Array<{ id: View; label: string; icon: typeof Gauge }> = [
   { id: "home", label: "Home", icon: Home },
   { id: "dashboard", label: "Dashboard", icon: Gauge },
   { id: "capture", label: "Capture", icon: Crosshair },
+  { id: "runtime", label: "Runtime", icon: Wrench },
   { id: "resources", label: "Resources", icon: Boxes },
   { id: "tracker", label: "Tracker", icon: ClipboardList },
   { id: "quiz", label: "Quiz", icon: Trophy },
@@ -177,7 +190,10 @@ export function App() {
         {view === "dashboard" && (
           <DashboardView state={dashboard} onRefresh={() => void refreshDashboard()} />
         )}
-        {view === "capture" && <CaptureView onChange={() => void refreshDashboard()} />}
+        {view === "capture" && (
+          <CaptureView onChange={() => void refreshDashboard()} onNavigate={setView} />
+        )}
+        {view === "runtime" && <RuntimeView />}
         {view === "resources" && <ResourcesView onChange={() => void refreshDashboard()} />}
         {view === "tracker" && <TrackerView onChange={() => void refreshDashboard()} />}
         {view === "quiz" && <QuizView />}
@@ -241,6 +257,12 @@ function HomeView({
       title: "Pronunciation model",
       detail:
         "Keep speech recordings and lightweight model training local while the app grows toward richer feedback."
+    },
+    {
+      icon: Wrench,
+      title: "Runtime doctor",
+      detail:
+        "Check overlay dependencies, writable local storage, macOS permission hints, and companion service health from the browser."
     },
     {
       icon: Shield,
@@ -391,7 +413,86 @@ function DashboardView({
   );
 }
 
-function CaptureView({ onChange }: { onChange: () => void }) {
+function RuntimeView() {
+  const [doctor, setDoctor] = useState<Loadable<RuntimeDoctor>>({
+    data: null,
+    loading: true,
+    error: null
+  });
+
+  useEffect(() => {
+    void loadDoctor();
+  }, []);
+
+  async function loadDoctor() {
+    setDoctor((current) => ({ ...current, loading: true, error: null }));
+    try {
+      setDoctor({ data: await api.runtimeDoctor(), loading: false, error: null });
+    } catch (requestError) {
+      setDoctor({
+        data: null,
+        loading: false,
+        error: requestError instanceof Error ? requestError.message : "Could not run runtime doctor"
+      });
+    }
+  }
+
+  const summary = doctor.data?.summary ?? "warn";
+  const summaryCopy = {
+    ok: {
+      title: "Runtime ready",
+      detail: "The local API, overlay runtime, storage paths, and companion services are ready."
+    },
+    warn: {
+      title: "Runtime needs attention",
+      detail: "One or more optional local services or macOS permissions may need setup."
+    },
+    error: {
+      title: "Runtime blocked",
+      detail: "A required local path, script, or Python dependency is missing."
+    }
+  }[summary];
+
+  return (
+    <section className="runtime-view">
+      <div className={`runtime-summary ${summary}`}>
+        <div>
+          <span className="eyebrow">Local runtime doctor</span>
+          <h2>{doctor.loading ? "Checking this machine" : summaryCopy.title}</h2>
+          <p>{doctor.error ?? summaryCopy.detail}</p>
+        </div>
+        <button className="primary-button" type="button" onClick={() => void loadDoctor()}>
+          <Activity size={17} />
+          Run checks
+        </button>
+      </div>
+
+      <div className="doctor-grid">
+        {(doctor.data?.checks ?? []).map((check) => {
+          const StatusIcon =
+            check.status === "ok" ? CheckCircle2 : check.status === "error" ? X : Activity;
+          return (
+            <article className="doctor-card" key={check.id}>
+              <div className="doctor-card-heading">
+                <StatusIcon size={18} aria-hidden="true" />
+                <span className={`status-pill ${check.status}`}>{check.status}</span>
+              </div>
+              <h3>{check.label}</h3>
+              <p>{check.detail}</p>
+              {check.action && <small>{check.action}</small>}
+            </article>
+          );
+        })}
+      </div>
+
+      {!doctor.loading && !doctor.error && doctor.data?.checks.length === 0 && (
+        <EmptyState title="No checks returned" detail="The local API responded, but no runtime checks were reported." />
+      )}
+    </section>
+  );
+}
+
+function CaptureView({ onChange, onNavigate }: { onChange: () => void; onNavigate: (view: View) => void }) {
   const [resources, setResources] = useState<Resource[]>([]);
   const [selectedResourceId, setSelectedResourceId] = useState<number | null>(null);
   const [overlay, setOverlay] = useState<Loadable<DesktopOverlayStatus>>({
@@ -526,6 +627,10 @@ function CaptureView({ onChange }: { onChange: () => void }) {
           <button className="secondary-button" type="button" onClick={() => void loadOverlayStatus()}>
             <Activity size={17} />
             Refresh status
+          </button>
+          <button className="secondary-button" type="button" onClick={() => onNavigate("runtime")}>
+            <Wrench size={17} />
+            Runtime doctor
           </button>
         </div>
         <div className="hotkey-card">

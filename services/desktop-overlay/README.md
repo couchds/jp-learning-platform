@@ -16,6 +16,8 @@ The overlay talks to the local API at `http://127.0.0.1:3001` by default. The AP
 
 The browser launcher prefers `services/desktop-overlay/.venv/bin/python` when that virtual environment exists. If it is missing, the launcher falls back to the system `python3`, which must have the packages from `requirements.txt` installed.
 
+When launched from the browser, the API passes `YOMUNAMI_WEB_URL` so the overlay's Open Web App button returns to the active Vite port. Manual launches default to `http://127.0.0.1:5173`.
+
 ## Flow
 
 1. Start the API and OCR service.

@@ -4,6 +4,12 @@ All notable changes to this project will be documented here.
 
 This project follows semantic versioning.
 
+## 0.3.0 - 2026-06-14
+
+- Add Runtime Doctor API checks for overlay dependencies, writable local paths, macOS permission hints, and companion service health.
+- Add a Runtime page in the browser control center with actionable local setup diagnostics.
+- Improve the desktop OCR overlay first paint and responsiveness by moving resource, OCR, and term-save requests off the UI thread.
+
 ## 0.2.0 - 2026-06-14
 
 - Add the browser landing page and polished local control-center navigation.
