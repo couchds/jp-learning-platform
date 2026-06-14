@@ -1,4 +1,19 @@
-import type { Dashboard, Kanji, OcrResult, Page, RecognitionResult, Resource, ServiceHealth, Word } from "./types";
+import type {
+  Dashboard,
+  DesktopOverlayStatus,
+  Kanji,
+  OcrResult,
+  Page,
+  QuizAnswerPayload,
+  QuizQuestion,
+  QuizSession,
+  RecognitionResult,
+  Resource,
+  ResourceDetail,
+  ResourceTerm,
+  ServiceHealth,
+  Word
+} from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:3001";
 
@@ -56,6 +71,42 @@ export const api = {
       method: "POST",
       body: JSON.stringify(resource)
     }),
+  resource: (id: number) => request<ResourceDetail>(`/api/resources/${id}`),
+  resourceTerms: (id: number) => request<Page<ResourceTerm>>(`/api/resources/${id}/terms?limit=100`),
+  addResourceTerm: (
+    id: number,
+    term: {
+      termType: ResourceTerm["termType"];
+      text: string;
+      reading?: string | null;
+      meaning?: string | null;
+      source?: string;
+      frequency?: number;
+      notes?: string | null;
+    }
+  ) =>
+    request<{ terms: ResourceTerm[] }>(`/api/resources/${id}/terms`, {
+      method: "POST",
+      body: JSON.stringify(term)
+    }),
+  quizDeck: (id: number, limit = 20) =>
+    request<{ questions: QuizQuestion[] }>(`/api/resources/${id}/quiz/deck?limit=${limit}`),
+  quizSessions: (id: number) =>
+    request<Page<QuizSession>>(`/api/resources/${id}/quiz/sessions?limit=5`),
+  saveQuizSession: (id: number, answers: QuizAnswerPayload[]) =>
+    request<{ session: QuizSession }>(`/api/resources/${id}/quiz/sessions`, {
+      method: "POST",
+      body: JSON.stringify({ mode: "resource", answers })
+    }),
+  desktopOverlayStatus: () => request<DesktopOverlayStatus>("/api/desktop/overlay/status"),
+  launchDesktopOverlay: () =>
+    request<{ launched: boolean; alreadyRequested?: boolean; pid?: number; overlay: string }>(
+      "/api/desktop/overlay/launch",
+      {
+        method: "POST",
+        body: JSON.stringify({})
+      }
+    ),
   kanji: (search: string) => request<Page<Kanji>>(`/api/kanji?limit=24&search=${encodeURIComponent(search)}`),
   words: (search: string) => request<Page<Word>>(`/api/words?limit=24&search=${encodeURIComponent(search)}`),
   ocrImage: (file: File) => {
@@ -65,6 +116,17 @@ export const api = {
       method: "POST",
       body: form
     });
+  },
+  ocrResourceImage: (resourceId: number, file: File, track = true) => {
+    const form = new FormData();
+    form.append("image", file);
+    return request<{ image: unknown; ocr: OcrResult; trackedTerms: ResourceTerm[] }>(
+      `/api/ocr/resources/${resourceId}/images?track=${track ? "true" : "false"}`,
+      {
+        method: "POST",
+        body: form
+      }
+    );
   },
   recognize: (paths: unknown[]) =>
     request<RecognitionResult>("/api/recognize", {
