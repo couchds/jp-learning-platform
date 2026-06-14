@@ -22,7 +22,24 @@ from predict import KeywordPredictor  # noqa: E402
 
 
 app = Flask(__name__)
-CORS(app)
+ALLOWED_ORIGINS = {
+    origin.strip()
+    for origin in os.environ.get(
+        "LOCAL_ALLOWED_ORIGINS",
+        "http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:4173,http://localhost:4173",
+    ).split(",")
+    if origin.strip()
+}
+CORS(app, origins=list(ALLOWED_ORIGINS))
+
+
+@app.before_request
+def reject_untrusted_origins():
+    origin = request.headers.get("Origin")
+    if origin and origin not in ALLOWED_ORIGINS:
+        return jsonify({"success": False, "error": "Origin is not allowed for this local service"}), 403
+
+    return None
 
 TRAINING_STATUS: dict[str, Any] = {
     "is_training": False,

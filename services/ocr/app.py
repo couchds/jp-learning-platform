@@ -8,6 +8,7 @@ other hosted backends are left out of this rebuild phase.
 from __future__ import annotations
 
 import io
+import importlib.util
 import os
 import sys
 from dataclasses import dataclass
@@ -20,13 +21,30 @@ from PIL import Image
 
 OCR_BACKEND = os.environ.get("OCR_BACKEND", "manga-ocr")
 EASYOCR_GPU = os.environ.get("OCR_EASYOCR_GPU", "false").lower() in {"1", "true", "yes"}
+ALLOWED_ORIGINS = {
+    origin.strip()
+    for origin in os.environ.get(
+        "LOCAL_ALLOWED_ORIGINS",
+        "http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:4173,http://localhost:4173",
+    ).split(",")
+    if origin.strip()
+}
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=list(ALLOWED_ORIGINS))
 
 _manga_ocr: Any | None = None
 _easyocr_reader: Any | None = None
 _tokenizer: Any | None = None
+
+
+@app.before_request
+def reject_untrusted_origins():
+    origin = request.headers.get("Origin")
+    if origin and origin not in ALLOWED_ORIGINS:
+        return jsonify({"success": False, "error": "Origin is not allowed for this local service"}), 403
+
+    return None
 
 
 @dataclass
@@ -161,15 +179,33 @@ def run_easyocr(image: Image.Image) -> str:
 
 @app.get("/health")
 def health():
-    return jsonify(
-        {
-            "status": "ok",
-            "service": "ocr",
-            "backend": OCR_BACKEND,
-            "local_only": True,
-            "supported_backends": ["manga-ocr", "easyocr"],
-        }
+    available, reason = backend_availability(OCR_BACKEND)
+    status_code = 200 if available else 503
+    return (
+        jsonify(
+            {
+                "status": "ok" if available else "unavailable",
+                "service": "ocr",
+                "backend": OCR_BACKEND,
+                "backend_available": available,
+                "reason": reason,
+                "local_only": True,
+                "supported_backends": ["manga-ocr", "easyocr"],
+            }
+        ),
+        status_code,
     )
+
+
+def backend_availability(backend: str) -> tuple[bool, str | None]:
+    module_name = {"manga-ocr": "manga_ocr", "easyocr": "easyocr"}.get(backend)
+    if module_name is None:
+        return False, f"Unsupported OCR_BACKEND: {backend}"
+
+    if importlib.util.find_spec(module_name) is None:
+        return False, f"Python module is not installed: {module_name}"
+
+    return True, None
 
 
 @app.post("/ocr")

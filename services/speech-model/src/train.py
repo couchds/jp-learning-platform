@@ -17,7 +17,7 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-GUI backend for headless environments
 import matplotlib.pyplot as plt
 
-from preprocessing import AudioPreprocessor
+from preprocessing import AudioPreprocessor, augment_audio
 from model import KeywordSpottingCNN, LightweightCNN, count_parameters
 
 
@@ -56,7 +56,13 @@ class KeywordDataset(Dataset):
         
         # Load and preprocess audio
         audio_path = self.audio_dir / row['filename']
-        mel_spec = self.preprocessor.preprocess(str(audio_path))
+        if self.augment:
+            audio = self.preprocessor.load_audio(str(audio_path))
+            audio = augment_audio(audio, sample_rate=self.preprocessor.sample_rate)
+            audio = self.preprocessor.pad_or_truncate(audio)
+            mel_spec = self.preprocessor.compute_mel_spectrogram(audio)
+        else:
+            mel_spec = self.preprocessor.preprocess(str(audio_path))
         
         # Add channel dimension
         mel_spec = mel_spec[np.newaxis, :, :]
