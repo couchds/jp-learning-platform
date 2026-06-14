@@ -10,3 +10,4 @@ This project follows semantic versioning.
 - Define repository layout, privacy constraints, and documentation conventions.
 - Add the local TypeScript API with SQLite persistence, local upload storage, and localhost OCR/recognition/speech service proxies.
 - Add local Python OCR, KanjiDraw recognition, and speech-model services.
+- Add the Vite/React local-first web app shell for resources, lookup, OCR, drawing recognition, and speech controls.

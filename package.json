@@ -12,12 +12,16 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "check": "npm run check --workspaces --if-present",
-    "dev": "npm run dev --workspace @jp-learning-platform/api",
+    "dev": "concurrently -n api,web -c green,cyan \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npm run dev --workspace @jp-learning-platform/api",
+    "dev:web": "npm run dev --workspace @jp-learning-platform/web",
     "format": "npm run format --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19.0"
   }
 }
