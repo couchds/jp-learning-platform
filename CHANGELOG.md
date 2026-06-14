@@ -4,6 +4,13 @@ All notable changes to this project will be documented here.
 
 This project follows semantic versioning.
 
+## 0.6.0 - 2026-06-14
+
+- Add a PyInstaller build path for `Yomunami OCR Overlay.app` on macOS.
+- Make the browser launcher prefer the named app bundle when present, falling back to the Python runtime for development.
+- Add Runtime Doctor visibility for the packaged desktop overlay app.
+- Document the macOS permission flow around the named overlay app.
+
 ## 0.5.0 - 2026-06-14
 
 - Make the desktop overlay hotkey scan the current screen immediately instead of opening region selection.

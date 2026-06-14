@@ -9,13 +9,26 @@ export const desktopRouter = Router();
 const OVERLAY_LAUNCH_COOLDOWN_MS = 10_000;
 let lastOverlayLaunch: { pid: number | undefined; launchedAt: number } | null = null;
 
+type OverlayLaunchTarget = {
+  command: string;
+  args: string[];
+  label: "app-bundle" | "python";
+  detail: string;
+};
+
 desktopRouter.get(
   "/overlay/status",
   asyncHandler((req, res) => {
     const webUrl = req.get("origin") ?? config.webAppUrl;
+    const launchTarget = overlayLaunchTarget();
+    const hasScript = fs.existsSync(config.overlayScriptPath);
+    const hasAppBundle = fs.existsSync(config.overlayAppExecutablePath);
     res.json({
-      available: fs.existsSync(config.overlayScriptPath),
+      available: hasScript || hasAppBundle,
       overlay: "desktop-overlay",
+      appBundle: hasAppBundle ? "installed" : "missing",
+      launchTarget: launchTarget.label,
+      launchTargetDetail: launchTarget.detail,
       python: fs.existsSync(config.overlayPythonPath) ? "venv" : "system",
       apiUrl: `http://${config.host}:${config.port}`,
       webUrl
@@ -26,8 +39,8 @@ desktopRouter.get(
 desktopRouter.post(
   "/overlay/launch",
   asyncHandler(async (req, res) => {
-    if (!fs.existsSync(config.overlayScriptPath)) {
-      throw new HttpError(404, "Desktop overlay script is not installed");
+    if (!fs.existsSync(config.overlayScriptPath) && !fs.existsSync(config.overlayAppExecutablePath)) {
+      throw new HttpError(404, "Desktop overlay is not installed");
     }
 
     const now = Date.now();
@@ -42,9 +55,9 @@ desktopRouter.post(
       return;
     }
 
-    const pythonCommand = fs.existsSync(config.overlayPythonPath) ? config.overlayPythonPath : "python3";
+    const launchTarget = overlayLaunchTarget();
     const webUrl = req.get("origin") ?? config.webAppUrl;
-    const child = spawn(pythonCommand, [config.overlayScriptPath], {
+    const child = spawn(launchTarget.command, launchTarget.args, {
       cwd: config.repoRoot,
       detached: true,
       stdio: ["ignore", "ignore", "pipe"],
@@ -113,6 +126,8 @@ desktopRouter.post(
       launched: true,
       pid: child.pid,
       overlay: "desktop-overlay",
+      launchTarget: launchTarget.label,
+      launchTargetDetail: launchTarget.detail,
       python: fs.existsSync(config.overlayPythonPath) ? "venv" : "system",
       webUrl
     });
@@ -126,4 +141,23 @@ function summarizeStartupError(stderr: string) {
     .filter(Boolean);
 
   return lines.at(-1) ?? "";
+}
+
+function overlayLaunchTarget(): OverlayLaunchTarget {
+  if (process.platform === "darwin" && fs.existsSync(config.overlayAppExecutablePath)) {
+    return {
+      command: config.overlayAppExecutablePath,
+      args: [],
+      label: "app-bundle",
+      detail: config.overlayAppPath
+    };
+  }
+
+  const pythonCommand = fs.existsSync(config.overlayPythonPath) ? config.overlayPythonPath : "python3";
+  return {
+    command: pythonCommand,
+    args: [config.overlayScriptPath],
+    label: "python",
+    detail: fs.existsSync(config.overlayPythonPath) ? config.overlayPythonPath : "python3"
+  };
 }

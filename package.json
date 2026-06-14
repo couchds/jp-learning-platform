@@ -1,6 +1,6 @@
 {
   "name": "jp-learning-platform",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "private": true,
   "description": "Local-first Japanese learning platform for resources, vocabulary, kanji, OCR, and pronunciation practice.",
   "license": "MIT",
@@ -11,6 +11,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "build:overlay:macos": "bash scripts/build-desktop-overlay-macos.sh",
     "check": "npm run check --workspaces --if-present",
     "dev": "concurrently -n api,web -c green,cyan \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npm run dev --workspace @jp-learning-platform/api",

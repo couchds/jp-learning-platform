@@ -9,7 +9,7 @@ This repository is intentionally starting fresh. The previous app's public-facin
 - **Local-first:** SQLite and local file storage are the default persistence layer.
 - **No bundled secrets:** `.env` files, API keys, service account material, trained models, uploads, and local databases are ignored.
 - **Composable services:** the web app, API, OCR service, kanji handwriting recognition service, and speech model service are separate local processes.
-- **Semver:** the current local product version is `0.5.0`; user-facing or API-contract changes should update the root package version and changelog.
+- **Semver:** the current local product version is `0.6.0`; user-facing or API-contract changes should update the root package version and changelog.
 
 ## Product Features
 
@@ -78,6 +78,13 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python overlay.py
+```
+
+On macOS, build a named app bundle when you want stable Screen Recording and Accessibility permissions:
+
+```bash
+npm run build:overlay:macos
+open "services/desktop-overlay/dist/Yomunami OCR Overlay.app"
 ```
 
 ```bash
@@ -170,16 +177,16 @@ The desktop overlay is the intended game/browser workflow:
 
 1. Start the API, web app, and OCR service.
 2. Open the browser control center.
-3. Launch the overlay from the Capture page or run `python services/desktop-overlay/overlay.py`.
+3. Launch the overlay from the Capture page, open `Yomunami OCR Overlay.app`, or run `python services/desktop-overlay/overlay.py` during development.
 4. Select a resource in the overlay.
 5. Press `ctrl+shift+o` to scan the screen under your mouse pointer.
 6. Review the full-screen screenshot overlay, highlighted text regions, OCR text, and term candidates.
 7. Add selected words/kanji to the resource tracker.
-8. Use **Capture Region** when a game or dense page needs a tighter crop.
+8. Use **Select tighter region** when a game or dense page needs a tighter crop.
 
-macOS may require Screen Recording and Accessibility permissions for the terminal or Python executable.
+macOS may require Screen Recording and Accessibility permissions. Prefer the packaged `Yomunami OCR Overlay.app` so the permission prompt names Yomunami instead of a generic Python runtime.
 
-The browser launcher uses `services/desktop-overlay/.venv/bin/python` when that virtual environment exists. Create it with the desktop overlay setup commands above before launching from the Capture page.
+The browser launcher prefers the packaged macOS app when it exists, then falls back to `services/desktop-overlay/.venv/bin/python`, then system `python3`.
 
 ## Versioning
 

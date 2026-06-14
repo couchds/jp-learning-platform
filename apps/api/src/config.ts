@@ -7,6 +7,8 @@ const overlayRoot = path.join(repoRoot, "services/desktop-overlay");
 const ocrRoot = path.join(repoRoot, "services/ocr");
 const defaultOverlayScriptPath = path.join(overlayRoot, "overlay.py");
 const defaultOverlayPythonPath = path.join(overlayRoot, ".venv/bin/python");
+const defaultOverlayAppPath = path.join(overlayRoot, "dist/Yomunami OCR Overlay.app");
+const defaultOverlayAppExecutablePath = path.join(defaultOverlayAppPath, "Contents/MacOS/Yomunami OCR Overlay");
 const defaultOcrScriptPath = path.join(ocrRoot, "app.py");
 const defaultOcrPythonPath = path.join(ocrRoot, ".venv/bin/python");
 
@@ -69,6 +71,8 @@ export const config = {
     "OVERLAY_SCRIPT_PATH"
   ),
   overlayPythonPath: process.env.OVERLAY_PYTHON_PATH ?? defaultOverlayPythonPath,
+  overlayAppPath: process.env.OVERLAY_APP_PATH ?? defaultOverlayAppPath,
+  overlayAppExecutablePath: process.env.OVERLAY_APP_EXECUTABLE_PATH ?? defaultOverlayAppExecutablePath,
   webAppUrl: process.env.WEB_APP_URL ?? "http://127.0.0.1:5173"
 };
 

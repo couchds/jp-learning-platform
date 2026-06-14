@@ -3,8 +3,8 @@
 ## Product Flow
 
 - Resource selected in overlay.
-- Hotkey opens a translucent drag-to-select overlay.
-- Selected region is captured with `mss`.
+- Hotkey scans the monitor under the pointer and opens a full-screen screenshot review overlay.
+- Select tighter region opens a screenshot-backed region selector for snug crops.
 - Image posts to `POST /api/ocr/image` for recognition only.
 - OCR candidates are displayed as checkboxes.
 - Selected terms post to `POST /api/resources/:resourceId/terms/bulk`.
@@ -23,4 +23,7 @@
 
 ## Packaging Notes
 
-The script is intentionally plain Python for now. A later product pass can add PyInstaller packaging, app signing, auto-start options, and system-tray controls.
+- `npm run build:overlay:macos` builds `services/desktop-overlay/dist/Yomunami OCR Overlay.app`.
+- The app bundle uses `com.yomunami.ocr-overlay` so macOS Screen Recording and Accessibility permissions attach to a recognizable Yomunami identity.
+- The API launcher prefers the app bundle executable when present and falls back to the Python development runtime when it is missing.
+- Future product passes can add a custom icon, notarization, auto-start options, and system-tray controls.
