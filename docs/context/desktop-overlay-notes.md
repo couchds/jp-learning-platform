@@ -5,9 +5,10 @@
 - Resource selected in overlay.
 - Hotkey opens a translucent drag-to-select overlay.
 - Selected region is captured with `mss`.
-- Image posts to `POST /api/ocr/resources/:resourceId/images`.
+- Image posts to `POST /api/ocr/image` for recognition only.
 - OCR candidates are displayed as checkboxes.
 - Selected terms post to `POST /api/resources/:resourceId/terms/bulk`.
+- Screenshot persistence should remain explicit; the overlay does not save captures before term confirmation.
 
 ## API Additions
 

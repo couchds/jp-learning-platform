@@ -237,15 +237,17 @@ class OverlayApp:
         RegionSelector(self.root, self.on_region_selected)
 
     def on_region_selected(self, rect: dict[str, int] | None) -> None:
-        self.root.deiconify()
         if rect is None:
+            self.root.deiconify()
             self.status.set("Capture cancelled")
             return
 
         try:
             image = self.capture_rect(rect)
+            self.root.deiconify()
             self.submit_ocr(image)
         except Exception as exc:
+            self.root.deiconify()
             messagebox.showerror("Capture failed", str(exc))
             self.status.set(f"Capture failed: {exc}")
 
@@ -262,12 +264,7 @@ class OverlayApp:
         files = {"image": ("capture.png", buffer, "image/png")}
         api_url = self.api_url.get().rstrip("/")
 
-        if self.selected_resource_id is not None:
-            url = f"{api_url}/api/ocr/resources/{self.selected_resource_id}/images"
-        else:
-            url = f"{api_url}/api/ocr/image"
-
-        response = requests.post(url, files=files, timeout=120)
+        response = requests.post(f"{api_url}/api/ocr/image", files=files, timeout=120)
         response.raise_for_status()
         payload = response.json()
         ocr = payload.get("ocr", payload)
@@ -364,15 +361,22 @@ class RegionSelector:
         top = min(self.start_y, event.y_root)
         width = abs(event.x_root - self.start_x)
         height = abs(event.y_root - self.start_y)
-        self.window.destroy()
         if width < 8 or height < 8:
-            self.callback(None)
+            self.finish(None)
             return
-        self.callback({"left": left, "top": top, "width": width, "height": height})
+        self.window.withdraw()
+        self.window.update_idletasks()
+        self.window.after(
+            120,
+            lambda: self.finish({"left": left, "top": top, "width": width, "height": height}),
+        )
 
     def cancel(self, _event) -> None:
+        self.finish(None)
+
+    def finish(self, rect: dict[str, int] | None) -> None:
         self.window.destroy()
-        self.callback(None)
+        self.callback(rect)
 
 
 def main() -> None:

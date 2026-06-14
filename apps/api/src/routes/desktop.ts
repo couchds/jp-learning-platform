@@ -6,12 +6,15 @@ import { asyncHandler, HttpError } from "../lib/http.js";
 
 export const desktopRouter = Router();
 
+const OVERLAY_LAUNCH_COOLDOWN_MS = 10_000;
+let lastOverlayLaunch: { pid: number | undefined; launchedAt: number } | null = null;
+
 desktopRouter.get(
   "/overlay/status",
   asyncHandler((_req, res) => {
     res.json({
       available: fs.existsSync(config.overlayScriptPath),
-      scriptPath: config.overlayScriptPath,
+      overlay: "desktop-overlay",
       apiUrl: `http://${config.host}:${config.port}`
     });
   })
@@ -19,9 +22,20 @@ desktopRouter.get(
 
 desktopRouter.post(
   "/overlay/launch",
-  asyncHandler((_req, res) => {
+  asyncHandler(async (_req, res) => {
     if (!fs.existsSync(config.overlayScriptPath)) {
       throw new HttpError(404, "Desktop overlay script is not installed");
+    }
+
+    const now = Date.now();
+    if (lastOverlayLaunch && now - lastOverlayLaunch.launchedAt < OVERLAY_LAUNCH_COOLDOWN_MS) {
+      res.status(202).json({
+        launched: false,
+        alreadyRequested: true,
+        pid: lastOverlayLaunch.pid,
+        overlay: "desktop-overlay"
+      });
+      return;
     }
 
     const child = spawn("python3", [config.overlayScriptPath], {
@@ -34,11 +48,33 @@ desktopRouter.post(
       }
     });
 
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        resolve();
+      }, 150);
+
+      function onError(error: Error) {
+        clearTimeout(timer);
+        reject(error);
+      }
+
+      child.once("error", onError);
+    }).catch((error: unknown) => {
+      throw new HttpError(
+        500,
+        error instanceof Error ? `Could not launch desktop overlay: ${error.message}` : "Could not launch desktop overlay"
+      );
+    });
+
+    child.on("error", (error) => {
+      console.error(`Desktop overlay process error: ${error.message}`);
+    });
     child.unref();
+    lastOverlayLaunch = { pid: child.pid, launchedAt: now };
     res.status(202).json({
       launched: true,
       pid: child.pid,
-      scriptPath: config.overlayScriptPath
+      overlay: "desktop-overlay"
     });
   })
 );

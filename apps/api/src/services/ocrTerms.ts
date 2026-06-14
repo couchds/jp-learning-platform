@@ -22,8 +22,7 @@ type OcrElement = {
 };
 
 export function termsFromOcrElements(elements: unknown[]): SuggestedTerm[] {
-  const seen = new Set<string>();
-  const terms: SuggestedTerm[] = [];
+  const terms = new Map<string, SuggestedTerm>();
 
   for (const raw of elements) {
     const element = raw as OcrElement;
@@ -35,23 +34,25 @@ export function termsFromOcrElements(elements: unknown[]): SuggestedTerm[] {
     const elementType = String(element.element_type ?? element.elementType ?? "unknown");
     const termType = normalizeTermType(elementType, text);
     const key = `${termType}:${text}`;
-    if (seen.has(key)) {
+    const existing = terms.get(key);
+    if (existing) {
+      existing.frequency = (existing.frequency ?? 1) + 1;
       continue;
     }
-    seen.add(key);
 
     const lemma = element.features && typeof element.features.lemma === "string" ? element.features.lemma : null;
-    terms.push({
+    terms.set(key, {
       termType,
       text,
       reading: termType === "kana" ? text : null,
       meaning: null,
       source: "ocr",
+      frequency: 1,
       notes: lemma && lemma !== text ? `Lemma: ${lemma}` : null
     });
   }
 
-  return terms;
+  return Array.from(terms.values());
 }
 
 export function upsertResourceTerms(resourceId: number, terms: SuggestedTerm[]) {
@@ -91,7 +92,7 @@ export function upsertResourceTerms(resourceId: number, terms: SuggestedTerm[]) 
          ON CONFLICT(item_type, item_key) DO UPDATE SET
            last_seen_at = excluded.last_seen_at,
            updated_at = excluded.updated_at`
-      ).run(term.termType, term.text, now, now);
+      ).run(knowledgeItemTypeFor(term.termType), term.text, now, now);
     }
   });
 
@@ -108,6 +109,14 @@ export function upsertResourceTerms(resourceId: number, terms: SuggestedTerm[]) 
     .all(resourceId, ...params) as ResourceTermRow[];
 
   return rows.map(mapResourceTerm);
+}
+
+function knowledgeItemTypeFor(termType: SuggestedTerm["termType"]) {
+  if (termType === "kanji" || termType === "word") {
+    return termType;
+  }
+
+  return "custom_vocabulary";
 }
 
 function normalizeTermType(elementType: string, text: string): SuggestedTerm["termType"] {

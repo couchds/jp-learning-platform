@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 const apiDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(apiDir, "../../..");
+const overlayRoot = path.join(repoRoot, "services/desktop-overlay");
+const defaultOverlayScriptPath = path.join(overlayRoot, "overlay.py");
 
 function boolFromEnv(value: string | undefined, fallback: boolean): boolean {
   if (value == null || value.trim() === "") {
@@ -23,6 +25,17 @@ function listFromEnv(value: string | undefined, fallback: string[]): string[] {
     .filter(Boolean);
 }
 
+function overlayScriptPathFromEnv(value: string | undefined): string {
+  const resolved = path.resolve(value ?? defaultOverlayScriptPath);
+  const relative = path.relative(overlayRoot, resolved);
+
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("OVERLAY_SCRIPT_PATH must point inside services/desktop-overlay");
+  }
+
+  return resolved;
+}
+
 export const config = {
   env: process.env.NODE_ENV ?? "development",
   repoRoot,
@@ -40,7 +53,7 @@ export const config = {
   ocrServiceUrl: process.env.OCR_SERVICE_URL ?? "http://127.0.0.1:5100",
   recognitionServiceUrl: process.env.RECOGNITION_SERVICE_URL ?? "http://127.0.0.1:5000",
   speechServiceUrl: process.env.SPEECH_SERVICE_URL ?? "http://127.0.0.1:5200",
-  overlayScriptPath: process.env.OVERLAY_SCRIPT_PATH ?? path.join(repoRoot, "services/desktop-overlay/overlay.py")
+  overlayScriptPath: overlayScriptPathFromEnv(process.env.OVERLAY_SCRIPT_PATH)
 };
 
 export type AppConfig = typeof config;

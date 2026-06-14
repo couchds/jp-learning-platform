@@ -12,7 +12,7 @@ import {
   type WordSummaryRow
 } from "../db/mappers.js";
 import { asyncHandler, HttpError, parseLimitOffset } from "../lib/http.js";
-import { upsertResourceTerms } from "../services/ocrTerms.js";
+import { type SuggestedTerm, upsertResourceTerms } from "../services/ocrTerms.js";
 
 const resourceSchema = z.object({
   name: z.string().trim().min(1).max(500),
@@ -355,6 +355,7 @@ resourcesRouter.post(
     const resourceId = Number(req.params.id);
     getResourceOrThrow(resourceId);
     const term = resourceTermSchema.parse(req.body);
+    validateTermImageSources(resourceId, [term]);
     const terms = upsertResourceTerms(resourceId, [term]);
     res.status(201).json({ terms });
   })
@@ -366,6 +367,7 @@ resourcesRouter.post(
     const resourceId = Number(req.params.id);
     getResourceOrThrow(resourceId);
     const body = bulkTermsSchema.parse(req.body);
+    validateTermImageSources(resourceId, body.terms);
     const terms = upsertResourceTerms(resourceId, body.terms);
     res.status(201).json({ terms });
   })
@@ -519,6 +521,25 @@ function ensureExists(table: "kanji" | "dictionary_entries", id: number, message
   const row = getDb().prepare(`SELECT id FROM ${table} WHERE id = ?`).get(id);
   if (!row) {
     throw new HttpError(404, message);
+  }
+}
+
+function validateTermImageSources(resourceId: number, terms: Pick<SuggestedTerm, "sourceImageId">[]) {
+  const imageIds = Array.from(
+    new Set(terms.map((term) => term.sourceImageId).filter((id): id is number => Number.isInteger(id)))
+  );
+
+  if (imageIds.length === 0) {
+    return;
+  }
+
+  const placeholders = imageIds.map(() => "?").join(", ");
+  const rows = getDb()
+    .prepare(`SELECT id FROM resource_images WHERE resource_id = ? AND id IN (${placeholders})`)
+    .all(resourceId, ...imageIds) as Array<{ id: number }>;
+
+  if (rows.length !== imageIds.length) {
+    throw new HttpError(400, "sourceImageId must belong to the target resource");
   }
 }
 
