@@ -29,3 +29,4 @@ When launched from the browser, the API passes `YOMUNAMI_WEB_URL` so the overlay
 7. Use **Select precise region** or **Select tighter region** when a game or dense page needs a tighter crop. The selector shows a dimmed screenshot with a visible capture box; drag around the Japanese text and release to scan that exact region.
 
 macOS may ask for Screen Recording and Accessibility permissions for terminal or Python before global hotkeys and capture can work.
+If the overlay shows a blank capture warning, grant Screen Recording permission to Python, Terminal, or the launcher, then quit and relaunch the overlay. Runtime diagnostics are written to `~/.yomunami-overlay.log`.

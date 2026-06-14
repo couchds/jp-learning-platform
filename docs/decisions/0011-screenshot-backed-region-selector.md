@@ -18,5 +18,6 @@ The user starts OCR by dragging around Japanese text and releasing the mouse. Ti
 
 - Region capture is now understandable without prior instructions.
 - Selection feedback is visible on macOS because the rectangle and selected crop are not faded by window-level alpha.
+- Blank macOS screen captures show an explicit Screen Recording permission message instead of an empty selector.
 - The selector operates on a screenshot instead of the live underlying window, which is consistent with the rest of the local-first OCR flow.
 - Future live-overlay work can still draw on top of native windows once packaging and OS permission handling are mature.

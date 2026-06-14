@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import threading
+import traceback
 import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,9 +27,23 @@ import mss
 
 
 CONFIG_PATH = Path.home() / ".yomunami-overlay.json"
+LOG_PATH = Path.home() / ".yomunami-overlay.log"
 DEFAULT_API_URL = os.environ.get("YOMUNAMI_API_URL", "http://127.0.0.1:3001")
 DEFAULT_WEB_URL = os.environ.get("YOMUNAMI_WEB_URL", "http://127.0.0.1:5173")
 DEFAULT_HOTKEY = "ctrl+shift+o"
+
+
+def log_debug(message: str) -> None:
+    try:
+        with LOG_PATH.open("a", encoding="utf-8") as log_file:
+            log_file.write(f"{message}\n")
+    except Exception:
+        return
+
+
+def image_looks_blank(image: Image.Image) -> bool:
+    extrema = ImageStat.Stat(image.convert("L")).extrema[0]
+    return (extrema[1] - extrema[0]) < 4
 
 
 @dataclass
@@ -108,6 +123,7 @@ class Highlight:
 class OverlayApp:
     def __init__(self) -> None:
         self.root = tk.Tk()
+        self.root.report_callback_exception = self.report_callback_exception
         self.root.title("Yomunami OCR Overlay")
         self.root.geometry("760x620")
         self.root.minsize(640, 520)
@@ -135,6 +151,10 @@ class OverlayApp:
 
         self.build_ui()
         self.root.after(50, self.startup)
+
+    def report_callback_exception(self, exc_type, exc_value, exc_traceback) -> None:
+        log_debug("Tk callback exception:")
+        log_debug("".join(traceback.format_exception(exc_type, exc_value, exc_traceback)).rstrip())
 
     def load_config(self) -> dict[str, Any]:
         if CONFIG_PATH.exists():
@@ -371,9 +391,6 @@ class OverlayApp:
             return
         try:
             image = self.capture_screen()
-            status = "Running OCR on screen..."
-            if self.image_looks_blank(image):
-                status = "Running OCR... Capture looks blank; macOS may need Screen Recording permission."
             self.screen_overlay = ScreenReviewOverlay(
                 self.root,
                 image,
@@ -381,9 +398,16 @@ class OverlayApp:
                 self.add_terms_from_screen_overlay,
                 self.capture_region,
             )
+            if self.image_looks_blank(image):
+                message = self.blank_capture_message()
+                self.status.set(message)
+                self.screen_overlay.show_capture_problem(message)
+                return
+            status = "Running OCR on screen..."
             self.submit_ocr(image, status, capture_id, self.screen_overlay)
         except Exception as exc:
             self.root.deiconify()
+            log_debug(f"Screen scan failed: {exc}")
             messagebox.showerror("Screen scan failed", str(exc))
             self.status.set(f"Screen scan failed: {exc}")
 
@@ -418,10 +442,14 @@ class OverlayApp:
             self.root.deiconify()
             status = "Running OCR..."
             if self.image_looks_blank(image):
-                status = "Running OCR... Capture looks blank; macOS may need Screen Recording permission."
+                status = self.blank_capture_message()
+                messagebox.showwarning("Blank capture", status)
+                self.status.set(status)
+                return
             self.submit_ocr(image, status, capture_id)
         except Exception as exc:
             self.root.deiconify()
+            log_debug(f"Capture failed: {exc}")
             messagebox.showerror("Capture failed", str(exc))
             self.status.set(f"Capture failed: {exc}")
 
@@ -447,8 +475,13 @@ class OverlayApp:
         return monitors[1] if len(monitors) > 1 else monitors[0]
 
     def image_looks_blank(self, image: Image.Image) -> bool:
-        extrema = ImageStat.Stat(image.convert("L")).extrema[0]
-        return (extrema[1] - extrema[0]) < 4
+        return image_looks_blank(image)
+
+    def blank_capture_message(self) -> str:
+        return (
+            "Screen capture is blank. macOS likely has not granted Screen Recording permission "
+            "to Python or the launcher. Grant permission, quit the overlay, then launch it again."
+        )
 
     def submit_ocr(
         self,
@@ -702,10 +735,11 @@ class ScreenReviewOverlay:
         self.image_scale = 1.0
         self.loaded = False
         self.saving = False
+        self.capture_problem: str | None = None
 
         self.window = tk.Toplevel(root)
         self.window.title("Yomunami Screen OCR")
-        self.window.configure(bg="#10100f")
+        self.window.configure(bg="#f7f7f4")
         self.window.attributes("-fullscreen", True)
         self.window.attributes("-topmost", True)
         self.window.protocol("WM_DELETE_WINDOW", self.close)
@@ -717,54 +751,54 @@ class ScreenReviewOverlay:
         self.window.after(50, self.render_screen)
 
     def build_ui(self) -> None:
-        topbar = tk.Frame(self.window, bg="#181712", height=48)
+        topbar = tk.Frame(self.window, bg="#f7f7f4", height=54)
         topbar.pack(fill=tk.X, side=tk.TOP)
         topbar.pack_propagate(False)
 
         tk.Label(
             topbar,
             text="Yomunami OCR",
-            bg="#181712",
-            fg="#f8efe0",
+            bg="#f7f7f4",
+            fg="#181712",
             font=("TkDefaultFont", 16, "bold"),
         ).pack(side=tk.LEFT, padx=16)
-        tk.Label(topbar, textvariable=self.status, bg="#181712", fg="#d4c8b5").pack(side=tk.LEFT, padx=10)
+        tk.Label(topbar, textvariable=self.status, bg="#f7f7f4", fg="#3e3a33").pack(side=tk.LEFT, padx=10)
         tk.Button(topbar, text="Close", command=self.close).pack(side=tk.RIGHT, padx=(6, 14), pady=8)
         tk.Button(topbar, text="Select tighter region", command=self.precise_region).pack(side=tk.RIGHT, padx=6, pady=8)
         tk.Button(topbar, text="Save selected terms", command=self.add_selected).pack(side=tk.RIGHT, padx=6, pady=8)
 
-        body = tk.Frame(self.window, bg="#080807")
+        body = tk.Frame(self.window, bg="#f7f7f4")
         body.pack(fill=tk.BOTH, expand=True)
 
-        self.canvas = tk.Canvas(body, bg="#080807", highlightthickness=0)
+        self.canvas = tk.Canvas(body, bg="#ffffff", highlightthickness=0)
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.canvas.bind("<Configure>", lambda _event: self.render_screen())
 
-        side = tk.Frame(body, bg="#151411", width=320)
+        side = tk.Frame(body, bg="#f7f7f4", width=340)
         side.pack(side=tk.RIGHT, fill=tk.Y)
         side.pack_propagate(False)
 
         tk.Label(
             side,
             text="Terms to save",
-            bg="#151411",
-            fg="#f8efe0",
+            bg="#f7f7f4",
+            fg="#181712",
             font=("TkDefaultFont", 13, "bold"),
         ).pack(anchor=tk.W, padx=12, pady=(12, 4))
         tk.Label(
             side,
             text="Selected rows are saved to the resource chosen in the control panel.",
-            bg="#151411",
-            fg="#d4c8b5",
-            wraplength=292,
+            bg="#f7f7f4",
+            fg="#3e3a33",
+            wraplength=312,
             justify=tk.LEFT,
         ).pack(anchor=tk.W, padx=12, pady=(0, 8))
         self.terms_list = tk.Listbox(
             side,
             selectmode=tk.MULTIPLE,
-            bg="#201f1a",
-            fg="#f8efe0",
-            selectbackground="#3f6b62",
+            bg="#ffffff",
+            fg="#181712",
+            selectbackground="#226f68",
             selectforeground="#ffffff",
             highlightthickness=0,
             activestyle="none",
@@ -774,17 +808,17 @@ class ScreenReviewOverlay:
         tk.Label(
             side,
             text="OCR text",
-            bg="#151411",
-            fg="#f8efe0",
+            bg="#f7f7f4",
+            fg="#181712",
             font=("TkDefaultFont", 13, "bold"),
         ).pack(anchor=tk.W, padx=12, pady=(0, 4))
         self.raw_text = tk.Text(
             side,
             height=9,
             wrap=tk.WORD,
-            bg="#201f1a",
-            fg="#f8efe0",
-            insertbackground="#f8efe0",
+            bg="#ffffff",
+            fg="#181712",
+            insertbackground="#181712",
             highlightthickness=0,
         )
         self.raw_text.pack(fill=tk.X, padx=12, pady=(0, 12))
@@ -811,6 +845,15 @@ class ScreenReviewOverlay:
         self.raw_text.insert("1.0", message)
         self.render_screen()
 
+    def show_capture_problem(self, message: str) -> None:
+        self.loaded = True
+        self.capture_problem = message
+        self.status.set("Screen capture needs permission")
+        self.raw_text.delete("1.0", tk.END)
+        self.raw_text.insert("1.0", message)
+        self.terms_list.delete(0, tk.END)
+        self.render_screen()
+
     def finish_add(self, message: str) -> None:
         self.saving = False
         if self.window.winfo_exists():
@@ -832,21 +875,60 @@ class ScreenReviewOverlay:
 
         self.canvas.create_image(offset_x, offset_y, anchor=tk.NW, image=self.photo)
 
+        if self.capture_problem is not None:
+            self.draw_capture_problem(width, height)
+            return
+
         for highlight in self.highlights:
             self.draw_highlight(highlight)
 
         if not self.loaded:
-            self.canvas.create_rectangle(20, 20, 260, 72, fill="#181712", outline="#4b463c")
-            self.canvas.create_text(36, 36, anchor=tk.NW, text="Scanning screen...", fill="#f8efe0")
+            self.canvas.create_rectangle(20, 20, 290, 76, fill="#ffffff", outline="#6f685c", width=2)
+            self.canvas.create_text(36, 38, anchor=tk.NW, text="Scanning screen...", fill="#181712")
         elif not self.highlights:
-            self.canvas.create_rectangle(20, 20, 420, 78, fill="#181712", outline="#d65f5f")
+            self.canvas.create_rectangle(20, 20, 520, 88, fill="#ffffff", outline="#b3261e", width=2)
             self.canvas.create_text(
                 36,
                 36,
                 anchor=tk.NW,
-                text="No OCR highlights found. Try Precise Region for a tighter crop.",
-                fill="#ffd166",
+                text="No OCR highlights found. Try Select tighter region for a snug crop.",
+                fill="#181712",
             )
+
+    def draw_capture_problem(self, width: int, height: int) -> None:
+        box_width = min(720, max(360, width - 80))
+        box_height = 190
+        x1 = int((width - box_width) / 2)
+        y1 = max(48, int((height - box_height) / 3))
+        self.canvas.create_rectangle(x1, y1, x1 + box_width, y1 + box_height, fill="#ffffff", outline="#b3261e", width=3)
+        self.canvas.create_text(
+            x1 + 24,
+            y1 + 22,
+            anchor=tk.NW,
+            text="Yomunami cannot see your screen yet",
+            fill="#181712",
+            font=("TkDefaultFont", 22, "bold"),
+        )
+        self.canvas.create_text(
+            x1 + 24,
+            y1 + 64,
+            anchor=tk.NW,
+            text=(
+                "macOS returned a blank image. Grant Screen Recording permission to Python, "
+                "Terminal, or the app that launched the overlay, then quit and relaunch the overlay."
+            ),
+            fill="#181712",
+            width=box_width - 48,
+            font=("TkDefaultFont", 14),
+        )
+        self.canvas.create_text(
+            x1 + 24,
+            y1 + 132,
+            anchor=tk.NW,
+            text=f"Diagnostics: {LOG_PATH}",
+            fill="#5c5448",
+            font=("TkDefaultFont", 12),
+        )
 
     def draw_highlight(self, highlight: Highlight) -> None:
         x_offset, y_offset = self.image_offset
@@ -903,6 +985,7 @@ class RegionSelector:
         self.root = root
         self.callback = callback
         self.monitor, self.image = self.capture_reference_screen()
+        self.capture_problem = image_looks_blank(self.image)
         self.drag_start: tuple[int, int] | None = None
         self.drag_current: tuple[int, int] | None = None
         self.preview_offset = (0, 0)
@@ -912,13 +995,19 @@ class RegionSelector:
         self.selection_photo: ImageTk.PhotoImage | None = None
         self.rect_id: int | None = None
         self.finished = False
-        self.status = tk.StringVar(value="Drag a box around the Japanese text, then release to scan.")
+        self.status = tk.StringVar(
+            value=(
+                "Screen capture is blank. Grant Screen Recording permission, then relaunch."
+                if self.capture_problem
+                else "Drag a box around the Japanese text, then release to scan."
+            )
+        )
 
         self.window = tk.Toplevel(root)
         self.window.title("Yomunami Precise Region")
         self.window.attributes("-topmost", True)
         self.window.attributes("-fullscreen", True)
-        self.window.configure(bg="#0d0c0a")
+        self.window.configure(bg="#f7f7f4")
         self.window.bind("<Escape>", self.cancel)
         self.window.protocol("WM_DELETE_WINDOW", self.cancel)
 
@@ -944,24 +1033,24 @@ class RegionSelector:
         return monitors[1] if len(monitors) > 1 else monitors[0]
 
     def build_ui(self) -> None:
-        header = tk.Frame(self.window, bg="#171510", height=72)
+        header = tk.Frame(self.window, bg="#f7f7f4", height=76)
         header.pack(fill=tk.X, side=tk.TOP)
         header.pack_propagate(False)
 
-        title_group = tk.Frame(header, bg="#171510")
+        title_group = tk.Frame(header, bg="#f7f7f4")
         title_group.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=18, pady=10)
         tk.Label(
             title_group,
             text="Precise OCR region",
-            bg="#171510",
-            fg="#fff7e8",
+            bg="#f7f7f4",
+            fg="#181712",
             font=("TkDefaultFont", 18, "bold"),
         ).pack(anchor=tk.W)
         tk.Label(
             title_group,
             textvariable=self.status,
-            bg="#171510",
-            fg="#d8cfbf",
+            bg="#f7f7f4",
+            fg="#3e3a33",
             font=("TkDefaultFont", 13),
         ).pack(anchor=tk.W, pady=(3, 0))
 
@@ -969,30 +1058,25 @@ class RegionSelector:
             header,
             text="Cancel",
             command=self.cancel,
-            bg="#302b22",
-            fg="#fff7e8",
-            activebackground="#453d30",
-            activeforeground="#ffffff",
-            relief=tk.FLAT,
             padx=18,
             pady=8,
         ).pack(side=tk.RIGHT, padx=18, pady=14)
 
-        self.canvas = tk.Canvas(self.window, cursor="crosshair", bg="#0d0c0a", highlightthickness=0)
+        self.canvas = tk.Canvas(self.window, cursor="crosshair", bg="#ffffff", highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.bind("<ButtonPress-1>", self.on_press)
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
         self.canvas.bind("<Configure>", lambda _event: self.render())
 
-        footer = tk.Frame(self.window, bg="#171510", height=40)
+        footer = tk.Frame(self.window, bg="#f7f7f4", height=42)
         footer.pack(fill=tk.X, side=tk.BOTTOM)
         footer.pack_propagate(False)
         tk.Label(
             footer,
             text="Tip: make the box snug around the text. Press Esc to cancel.",
-            bg="#171510",
-            fg="#d8cfbf",
+            bg="#f7f7f4",
+            fg="#3e3a33",
         ).pack(side=tk.LEFT, padx=18)
 
     def focus(self) -> None:
@@ -1012,7 +1096,7 @@ class RegionSelector:
             max(1, int(self.image.height * scale)),
         )
         preview = self.image.resize(preview_size)
-        dimmed = Image.blend(preview, Image.new("RGB", preview_size, "#0d0c0a"), 0.42)
+        dimmed = Image.blend(preview, Image.new("RGB", preview_size, "#f7f7f4"), 0.38)
         self.photo = ImageTk.PhotoImage(dimmed)
         offset_x = int((width - preview_size[0]) / 2)
         offset_y = int((height - preview_size[1]) / 2)
@@ -1021,21 +1105,60 @@ class RegionSelector:
         self.preview_scale = scale
         self.canvas.create_image(offset_x, offset_y, anchor=tk.NW, image=self.photo)
 
+        if self.capture_problem:
+            self.draw_capture_problem(width, height)
+            return
+
         self.draw_idle_prompt(width)
         self.draw_selection()
+
+    def draw_capture_problem(self, width: int, height: int) -> None:
+        box_width = min(760, max(360, width - 80))
+        box_height = 210
+        x1 = int((width - box_width) / 2)
+        y1 = max(48, int((height - box_height) / 3))
+        self.canvas.create_rectangle(x1, y1, x1 + box_width, y1 + box_height, fill="#ffffff", outline="#b3261e", width=3)
+        self.canvas.create_text(
+            x1 + 24,
+            y1 + 24,
+            anchor=tk.NW,
+            text="The selector cannot see your screen",
+            fill="#181712",
+            font=("TkDefaultFont", 22, "bold"),
+        )
+        self.canvas.create_text(
+            x1 + 24,
+            y1 + 70,
+            anchor=tk.NW,
+            text=(
+                "macOS returned a blank screenshot. Open System Settings > Privacy & Security > "
+                "Screen Recording and grant permission to Python, Terminal, or the app that launched Yomunami."
+            ),
+            fill="#181712",
+            width=box_width - 48,
+            font=("TkDefaultFont", 14),
+        )
+        self.canvas.create_text(
+            x1 + 24,
+            y1 + 150,
+            anchor=tk.NW,
+            text="After changing permission, quit and relaunch the overlay.",
+            fill="#5c5448",
+            font=("TkDefaultFont", 13, "bold"),
+        )
 
     def draw_idle_prompt(self, width: int) -> None:
         if self.drag_start is not None:
             return
 
         box_width = min(560, max(340, width - 48))
-        self.canvas.create_rectangle(24, 22, 24 + box_width, 96, fill="#171510", outline="#f5c95d", width=2)
+        self.canvas.create_rectangle(24, 22, 24 + box_width, 102, fill="#ffffff", outline="#226f68", width=3)
         self.canvas.create_text(
             44,
             40,
             anchor=tk.NW,
             text="Click and drag over the Japanese text.",
-            fill="#fff7e8",
+            fill="#181712",
             font=("TkDefaultFont", 18, "bold"),
         )
         self.canvas.create_text(
@@ -1043,7 +1166,7 @@ class RegionSelector:
             68,
             anchor=tk.NW,
             text="Release the mouse to run OCR on that exact box.",
-            fill="#d8cfbf",
+            fill="#3e3a33",
             font=("TkDefaultFont", 13),
         )
 
@@ -1062,7 +1185,7 @@ class RegionSelector:
         crop_size = (max(1, int(image_width * self.preview_scale)), max(1, int(image_height * self.preview_scale)))
         self.selection_photo = ImageTk.PhotoImage(crop.resize(crop_size))
         self.canvas.create_image(x1, y1, anchor=tk.NW, image=self.selection_photo)
-        self.canvas.create_rectangle(x1, y1, x2, y2, outline="#ffd166", width=4)
+        self.canvas.create_rectangle(x1, y1, x2, y2, outline="#226f68", width=4)
 
         handle = 7
         for hx, hy in ((x1, y1), (x2, y1), (x1, y2), (x2, y2)):
@@ -1071,15 +1194,15 @@ class RegionSelector:
                 hy - handle,
                 hx + handle,
                 hy + handle,
-                fill="#ffd166",
-                outline="#171510",
+                fill="#226f68",
+                outline="#ffffff",
                 width=2,
             )
 
         label = f"{image_width} x {image_height}px - release to scan"
         label_y = y1 - 34 if y1 > 48 else y2 + 12
-        self.canvas.create_rectangle(x1, label_y, x1 + 230, label_y + 26, fill="#171510", outline="#ffd166")
-        self.canvas.create_text(x1 + 10, label_y + 6, anchor=tk.NW, text=label, fill="#fff7e8")
+        self.canvas.create_rectangle(x1, label_y, x1 + 230, label_y + 26, fill="#ffffff", outline="#226f68", width=2)
+        self.canvas.create_text(x1 + 10, label_y + 6, anchor=tk.NW, text=label, fill="#181712")
 
     def normalized_canvas_rect(self) -> tuple[int, int, int, int] | None:
         if self.drag_start is None or self.drag_current is None:
@@ -1121,6 +1244,8 @@ class RegionSelector:
         )
 
     def on_press(self, event) -> None:
+        if self.capture_problem:
+            return
         self.drag_start = self.clamp_to_preview(event.x, event.y)
         self.drag_current = self.drag_start
         self.status.set("Keep dragging to cover the text. Release to scan.")

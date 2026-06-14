@@ -10,4 +10,6 @@
 - The desktop hotkey scans the monitor under the mouse pointer immediately and renders a full-screen screenshot review overlay with highlights and selectable terms.
 - The manual Capture Region and review-overlay Precise Region controls open a screenshot-backed selector. It dims the screenshot, keeps the selected crop bright, and scans when the mouse is released.
 - The desktop overlay renders the captured image first; this helps diagnose macOS Screen Recording permission issues because blocked captures often appear blank.
+- Blank captures now stop before OCR and show a permission-focused message instead of an empty review or region-selector window.
+- Runtime overlay diagnostics are written to `~/.yomunami-overlay.log`.
 - If a user sees text but no boxes, check `/api/ocr/health` for `active_backend` and `boxes_available`.
