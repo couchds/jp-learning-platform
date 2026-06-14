@@ -8,6 +8,6 @@
 - EasyOCR filters detections below `OCR_EASYOCR_MIN_CONFIDENCE=0.05` by default to reduce noisy full-window highlights.
 - `/health` reports `status=warming` until the selected OCR model is actually loaded.
 - The desktop hotkey scans the monitor under the mouse pointer immediately and renders a full-screen screenshot review overlay with highlights and selectable terms.
-- The manual Capture Region control remains available for precise crops when full-screen OCR is too noisy.
+- The manual Capture Region and review-overlay Precise Region controls open a screenshot-backed selector. It dims the screenshot, keeps the selected crop bright, and scans when the mouse is released.
 - The desktop overlay renders the captured image first; this helps diagnose macOS Screen Recording permission issues because blocked captures often appear blank.
 - If a user sees text but no boxes, check `/api/ocr/health` for `active_backend` and `boxes_available`.

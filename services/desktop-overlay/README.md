@@ -25,7 +25,7 @@ When launched from the browser, the API passes `YOMUNAMI_WEB_URL` so the overlay
 3. Select a resource.
 4. Press the hotkey, default `ctrl+shift+o`, to scan the monitor under your mouse pointer.
 5. Review the full-screen screenshot overlay, OCR highlights, OCR text, and terms to save.
-6. Use **Save selected terms** to add selected terms to the resource tracker.
-7. Use **Precise Region** when a game or dense page needs a tighter crop; then click and drag over the Japanese text.
+6. Use **Save checked terms** to add checked terms to the resource tracker.
+7. Use **Select precise region** or **Select tighter region** when a game or dense page needs a tighter crop. The selector shows a dimmed screenshot with a visible capture box; drag around the Japanese text and release to scan that exact region.
 
 macOS may ask for Screen Recording and Accessibility permissions for terminal or Python before global hotkeys and capture can work.

@@ -130,6 +130,8 @@ class OverlayApp:
         self.active_capture_id = 0
         self.term_vars: list[tk.BooleanVar] = []
         self.hotkey_listener: keyboard.GlobalHotKeys | None = None
+        self.hotkey_lock = threading.Lock()
+        self.hotkey_setup_generation = 0
 
         self.build_ui()
         self.root.after(50, self.startup)
@@ -175,7 +177,7 @@ class OverlayApp:
         ).pack(anchor=tk.W)
         ttk.Label(
             hero,
-            text="Press the hotkey to scan the screen, review highlighted Japanese text, then save useful terms.",
+            text="Scan the current screen, or draw a precise box around Japanese text and release to run OCR.",
             style="Hero.TLabel",
         ).pack(anchor=tk.W, pady=(6, 0))
 
@@ -202,9 +204,9 @@ class OverlayApp:
 
         action_frame = ttk.Frame(outer)
         action_frame.pack(fill=tk.X, pady=10)
-        ttk.Button(action_frame, text="Scan Screen", command=self.scan_screen).pack(side=tk.LEFT)
-        ttk.Button(action_frame, text="Capture Region", command=self.capture_region).pack(side=tk.LEFT, padx=(8, 0))
-        ttk.Button(action_frame, text="Save selected terms", command=self.add_selected_terms).pack(side=tk.LEFT, padx=8)
+        ttk.Button(action_frame, text="Scan current screen", command=self.scan_screen).pack(side=tk.LEFT)
+        ttk.Button(action_frame, text="Select precise region", command=self.capture_region).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Button(action_frame, text="Save checked terms", command=self.add_selected_terms).pack(side=tk.LEFT, padx=8)
         ttk.Label(action_frame, textvariable=self.resource_label).pack(side=tk.RIGHT)
 
         result_frame = ttk.LabelFrame(outer, text="OCR result", padding=12)
@@ -237,7 +239,7 @@ class OverlayApp:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         ttk.Label(
             self.terms_frame,
-            text="No capture yet. Use Capture Region or press the hotkey.",
+            text="No capture yet. Use Scan current screen, Select precise region, or press the hotkey.",
             style="Muted.TLabel",
         ).pack(anchor=tk.W, pady=6)
 
@@ -245,31 +247,46 @@ class OverlayApp:
 
     def startup(self) -> None:
         self.root.update_idletasks()
-        try:
-            self.start_hotkey_listener()
-        except Exception as exc:
-            self.status.set(f"Hotkey listener unavailable: {exc}")
         self.refresh_resources()
+        self.root.after(250, self.start_hotkey_listener_async)
 
     def apply_settings(self) -> None:
         self.save_config()
+        self.start_hotkey_listener_async()
+
+    def start_hotkey_listener_async(self) -> None:
+        hotkey_text = self.hotkey.get().strip() or DEFAULT_HOTKEY
+        with self.hotkey_lock:
+            self.hotkey_setup_generation += 1
+            generation = self.hotkey_setup_generation
+        self.status.set(f"Starting hotkey {hotkey_text}...")
+        threading.Thread(target=self.start_hotkey_listener_worker, args=(hotkey_text, generation), daemon=True).start()
+
+    def start_hotkey_listener_worker(self, hotkey_text: str, generation: int) -> None:
+        listener: keyboard.GlobalHotKeys | None = None
         try:
-            self.start_hotkey_listener()
-            self.status.set(f"Hotkey set to {self.hotkey.get()}")
+            pynput_hotkey = self.to_pynput_hotkey(hotkey_text)
+            listener = keyboard.GlobalHotKeys({pynput_hotkey: self.hotkey_capture})
+            listener.start()
+
+            old_listener: keyboard.GlobalHotKeys | None = None
+            with self.hotkey_lock:
+                if generation != self.hotkey_setup_generation:
+                    listener.stop()
+                    return
+                old_listener = self.hotkey_listener
+                self.hotkey_listener = listener
+
+            if old_listener is not None:
+                old_listener.stop()
+            self.root.after(0, lambda: self.status.set(f"Hotkey set to {hotkey_text}"))
         except Exception as exc:
-            self.status.set(f"Hotkey listener unavailable: {exc}")
+            if listener is not None:
+                listener.stop()
+            self.root.after(0, lambda exc=exc: self.status.set(f"Hotkey listener unavailable: {exc}"))
 
     def open_web_app(self) -> None:
         webbrowser.open(self.web_url.get().rstrip("/") or DEFAULT_WEB_URL)
-
-    def start_hotkey_listener(self) -> None:
-        if self.hotkey_listener is not None:
-            self.hotkey_listener.stop()
-
-        hotkey_text = self.hotkey.get().strip() or DEFAULT_HOTKEY
-        pynput_hotkey = self.to_pynput_hotkey(hotkey_text)
-        self.hotkey_listener = keyboard.GlobalHotKeys({pynput_hotkey: self.hotkey_capture})
-        self.hotkey_listener.start()
 
     def to_pynput_hotkey(self, value: str) -> str:
         parts = [part.strip().lower() for part in value.replace("+", " ").split() if part.strip()]
@@ -375,8 +392,18 @@ class OverlayApp:
             self.screen_overlay.close(show_control_panel=False)
         capture_id = self.next_capture_id()
         self.root.withdraw()
-        self.status.set("Drag a region to capture")
-        RegionSelector(self.root, lambda rect: self.on_region_selected(rect, capture_id))
+        self.status.set("Opening precise region selector...")
+        self.root.after(140, lambda: self.start_region_selector(capture_id))
+
+    def start_region_selector(self, capture_id: int) -> None:
+        if capture_id != self.active_capture_id:
+            return
+        try:
+            RegionSelector(self.root, lambda rect: self.on_region_selected(rect, capture_id))
+        except Exception as exc:
+            self.root.deiconify()
+            messagebox.showerror("Region selector failed", str(exc))
+            self.status.set(f"Region selector failed: {exc}")
 
     def on_region_selected(self, rect: dict[str, int] | None, capture_id: int) -> None:
         if capture_id != self.active_capture_id:
@@ -645,8 +672,12 @@ class OverlayApp:
 
     def shutdown(self) -> None:
         self.save_config()
-        if self.hotkey_listener is not None:
-            self.hotkey_listener.stop()
+        with self.hotkey_lock:
+            self.hotkey_setup_generation += 1
+            hotkey_listener = self.hotkey_listener
+            self.hotkey_listener = None
+        if hotkey_listener is not None:
+            hotkey_listener.stop()
         self.root.destroy()
 
 
@@ -699,7 +730,7 @@ class ScreenReviewOverlay:
         ).pack(side=tk.LEFT, padx=16)
         tk.Label(topbar, textvariable=self.status, bg="#181712", fg="#d4c8b5").pack(side=tk.LEFT, padx=10)
         tk.Button(topbar, text="Close", command=self.close).pack(side=tk.RIGHT, padx=(6, 14), pady=8)
-        tk.Button(topbar, text="Precise Region", command=self.precise_region).pack(side=tk.RIGHT, padx=6, pady=8)
+        tk.Button(topbar, text="Select tighter region", command=self.precise_region).pack(side=tk.RIGHT, padx=6, pady=8)
         tk.Button(topbar, text="Save selected terms", command=self.add_selected).pack(side=tk.RIGHT, padx=6, pady=8)
 
         body = tk.Frame(self.window, bg="#080807")
@@ -866,59 +897,258 @@ class ScreenReviewOverlay:
 
 
 class RegionSelector:
+    MIN_SELECTION_SIZE = 18
+
     def __init__(self, root: tk.Tk, callback) -> None:
+        self.root = root
         self.callback = callback
-        self.start_x = 0
-        self.start_y = 0
+        self.monitor, self.image = self.capture_reference_screen()
+        self.drag_start: tuple[int, int] | None = None
+        self.drag_current: tuple[int, int] | None = None
+        self.preview_offset = (0, 0)
+        self.preview_size = (1, 1)
+        self.preview_scale = 1.0
+        self.photo: ImageTk.PhotoImage | None = None
+        self.selection_photo: ImageTk.PhotoImage | None = None
         self.rect_id: int | None = None
+        self.finished = False
+        self.status = tk.StringVar(value="Drag a box around the Japanese text, then release to scan.")
 
         self.window = tk.Toplevel(root)
-        self.window.attributes("-fullscreen", True)
-        self.window.attributes("-alpha", 0.25)
+        self.window.title("Yomunami Precise Region")
         self.window.attributes("-topmost", True)
-        self.window.configure(bg="black")
+        self.window.attributes("-fullscreen", True)
+        self.window.configure(bg="#0d0c0a")
         self.window.bind("<Escape>", self.cancel)
+        self.window.protocol("WM_DELETE_WINDOW", self.cancel)
 
-        self.canvas = tk.Canvas(self.window, cursor="crosshair", bg="black", highlightthickness=0)
-        self.canvas.pack(fill=tk.BOTH, expand=True)
-        self.canvas.create_text(
-            28,
-            28,
-            anchor=tk.NW,
-            text="Click and drag over the Japanese text. Press Esc to cancel.",
-            fill="white",
+        self.build_ui()
+        self.window.after(30, self.focus)
+
+    def capture_reference_screen(self) -> tuple[dict[str, int], Image.Image]:
+        self.root.update_idletasks()
+        with mss.mss() as screen:
+            monitor = self.monitor_under_pointer(screen.monitors)
+            grabbed = screen.grab(monitor)
+            image = Image.frombytes("RGB", grabbed.size, grabbed.rgb)
+            return monitor, image
+
+    def monitor_under_pointer(self, monitors: list[dict[str, int]]) -> dict[str, int]:
+        pointer_x, pointer_y = mouse.Controller().position
+        for monitor in monitors[1:]:
+            left = monitor["left"]
+            top = monitor["top"]
+            if left <= pointer_x < left + monitor["width"] and top <= pointer_y < top + monitor["height"]:
+                return monitor
+
+        return monitors[1] if len(monitors) > 1 else monitors[0]
+
+    def build_ui(self) -> None:
+        header = tk.Frame(self.window, bg="#171510", height=72)
+        header.pack(fill=tk.X, side=tk.TOP)
+        header.pack_propagate(False)
+
+        title_group = tk.Frame(header, bg="#171510")
+        title_group.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=18, pady=10)
+        tk.Label(
+            title_group,
+            text="Precise OCR region",
+            bg="#171510",
+            fg="#fff7e8",
             font=("TkDefaultFont", 18, "bold"),
-        )
+        ).pack(anchor=tk.W)
+        tk.Label(
+            title_group,
+            textvariable=self.status,
+            bg="#171510",
+            fg="#d8cfbf",
+            font=("TkDefaultFont", 13),
+        ).pack(anchor=tk.W, pady=(3, 0))
+
+        tk.Button(
+            header,
+            text="Cancel",
+            command=self.cancel,
+            bg="#302b22",
+            fg="#fff7e8",
+            activebackground="#453d30",
+            activeforeground="#ffffff",
+            relief=tk.FLAT,
+            padx=18,
+            pady=8,
+        ).pack(side=tk.RIGHT, padx=18, pady=14)
+
+        self.canvas = tk.Canvas(self.window, cursor="crosshair", bg="#0d0c0a", highlightthickness=0)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.bind("<ButtonPress-1>", self.on_press)
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
-        self.window.after(30, self.focus)
+        self.canvas.bind("<Configure>", lambda _event: self.render())
+
+        footer = tk.Frame(self.window, bg="#171510", height=40)
+        footer.pack(fill=tk.X, side=tk.BOTTOM)
+        footer.pack_propagate(False)
+        tk.Label(
+            footer,
+            text="Tip: make the box snug around the text. Press Esc to cancel.",
+            bg="#171510",
+            fg="#d8cfbf",
+        ).pack(side=tk.LEFT, padx=18)
 
     def focus(self) -> None:
         self.window.lift()
         self.window.focus_force()
         self.canvas.focus_set()
+        self.render()
+
+    def render(self) -> None:
+        width = max(self.canvas.winfo_width(), 1)
+        height = max(self.canvas.winfo_height(), 1)
+        self.canvas.delete("all")
+
+        scale = min(width / self.image.width, height / self.image.height)
+        preview_size = (
+            max(1, int(self.image.width * scale)),
+            max(1, int(self.image.height * scale)),
+        )
+        preview = self.image.resize(preview_size)
+        dimmed = Image.blend(preview, Image.new("RGB", preview_size, "#0d0c0a"), 0.42)
+        self.photo = ImageTk.PhotoImage(dimmed)
+        offset_x = int((width - preview_size[0]) / 2)
+        offset_y = int((height - preview_size[1]) / 2)
+        self.preview_offset = (offset_x, offset_y)
+        self.preview_size = preview_size
+        self.preview_scale = scale
+        self.canvas.create_image(offset_x, offset_y, anchor=tk.NW, image=self.photo)
+
+        self.draw_idle_prompt(width)
+        self.draw_selection()
+
+    def draw_idle_prompt(self, width: int) -> None:
+        if self.drag_start is not None:
+            return
+
+        box_width = min(560, max(340, width - 48))
+        self.canvas.create_rectangle(24, 22, 24 + box_width, 96, fill="#171510", outline="#f5c95d", width=2)
+        self.canvas.create_text(
+            44,
+            40,
+            anchor=tk.NW,
+            text="Click and drag over the Japanese text.",
+            fill="#fff7e8",
+            font=("TkDefaultFont", 18, "bold"),
+        )
+        self.canvas.create_text(
+            44,
+            68,
+            anchor=tk.NW,
+            text="Release the mouse to run OCR on that exact box.",
+            fill="#d8cfbf",
+            font=("TkDefaultFont", 13),
+        )
+
+    def draw_selection(self) -> None:
+        canvas_rect = self.normalized_canvas_rect()
+        image_rect = self.selection_image_rect()
+        if canvas_rect is None or image_rect is None:
+            return
+
+        x1, y1, x2, y2 = canvas_rect
+        image_x, image_y, image_width, image_height = image_rect
+        if image_width <= 0 or image_height <= 0:
+            return
+
+        crop = self.image.crop((image_x, image_y, image_x + image_width, image_y + image_height))
+        crop_size = (max(1, int(image_width * self.preview_scale)), max(1, int(image_height * self.preview_scale)))
+        self.selection_photo = ImageTk.PhotoImage(crop.resize(crop_size))
+        self.canvas.create_image(x1, y1, anchor=tk.NW, image=self.selection_photo)
+        self.canvas.create_rectangle(x1, y1, x2, y2, outline="#ffd166", width=4)
+
+        handle = 7
+        for hx, hy in ((x1, y1), (x2, y1), (x1, y2), (x2, y2)):
+            self.canvas.create_rectangle(
+                hx - handle,
+                hy - handle,
+                hx + handle,
+                hy + handle,
+                fill="#ffd166",
+                outline="#171510",
+                width=2,
+            )
+
+        label = f"{image_width} x {image_height}px - release to scan"
+        label_y = y1 - 34 if y1 > 48 else y2 + 12
+        self.canvas.create_rectangle(x1, label_y, x1 + 230, label_y + 26, fill="#171510", outline="#ffd166")
+        self.canvas.create_text(x1 + 10, label_y + 6, anchor=tk.NW, text=label, fill="#fff7e8")
+
+    def normalized_canvas_rect(self) -> tuple[int, int, int, int] | None:
+        if self.drag_start is None or self.drag_current is None:
+            return None
+
+        start_x, start_y = self.clamp_to_preview(*self.drag_start)
+        current_x, current_y = self.clamp_to_preview(*self.drag_current)
+        return (
+            min(start_x, current_x),
+            min(start_y, current_y),
+            max(start_x, current_x),
+            max(start_y, current_y),
+        )
+
+    def selection_image_rect(self) -> tuple[int, int, int, int] | None:
+        canvas_rect = self.normalized_canvas_rect()
+        if canvas_rect is None:
+            return None
+
+        x1, y1, x2, y2 = canvas_rect
+        offset_x, offset_y = self.preview_offset
+        image_x = int((x1 - offset_x) / self.preview_scale)
+        image_y = int((y1 - offset_y) / self.preview_scale)
+        image_width = int((x2 - x1) / self.preview_scale)
+        image_height = int((y2 - y1) / self.preview_scale)
+
+        image_x = max(0, min(image_x, self.image.width - 1))
+        image_y = max(0, min(image_y, self.image.height - 1))
+        image_width = max(0, min(image_width, self.image.width - image_x))
+        image_height = max(0, min(image_height, self.image.height - image_y))
+        return image_x, image_y, image_width, image_height
+
+    def clamp_to_preview(self, x: int, y: int) -> tuple[int, int]:
+        offset_x, offset_y = self.preview_offset
+        preview_width, preview_height = self.preview_size
+        return (
+            max(offset_x, min(x, offset_x + preview_width)),
+            max(offset_y, min(y, offset_y + preview_height)),
+        )
 
     def on_press(self, event) -> None:
-        self.start_x = event.x_root
-        self.start_y = event.y_root
-        self.rect_id = self.canvas.create_rectangle(event.x, event.y, event.x, event.y, outline="red", width=3)
+        self.drag_start = self.clamp_to_preview(event.x, event.y)
+        self.drag_current = self.drag_start
+        self.status.set("Keep dragging to cover the text. Release to scan.")
+        self.render()
 
     def on_drag(self, event) -> None:
-        if self.rect_id is None:
+        if self.drag_start is None:
             return
-        local_start_x = self.start_x - self.window.winfo_rootx()
-        local_start_y = self.start_y - self.window.winfo_rooty()
-        self.canvas.coords(self.rect_id, local_start_x, local_start_y, event.x, event.y)
+        self.drag_current = self.clamp_to_preview(event.x, event.y)
+        self.render()
 
     def on_release(self, event) -> None:
-        left = min(self.start_x, event.x_root)
-        top = min(self.start_y, event.y_root)
-        width = abs(event.x_root - self.start_x)
-        height = abs(event.y_root - self.start_y)
-        if width < 8 or height < 8:
-            self.finish(None)
+        if self.drag_start is None:
             return
+        self.drag_current = self.clamp_to_preview(event.x, event.y)
+        image_rect = self.selection_image_rect()
+        if image_rect is None:
+            self.reset_small_selection()
+            return
+
+        image_x, image_y, width, height = image_rect
+        if width < self.MIN_SELECTION_SIZE or height < self.MIN_SELECTION_SIZE:
+            self.reset_small_selection()
+            return
+
+        left = int(self.monitor["left"] + image_x)
+        top = int(self.monitor["top"] + image_y)
+        self.status.set("Scanning selected region...")
         self.window.withdraw()
         self.window.update_idletasks()
         self.window.after(
@@ -926,10 +1156,19 @@ class RegionSelector:
             lambda: self.finish({"left": left, "top": top, "width": width, "height": height}),
         )
 
-    def cancel(self, _event) -> None:
+    def reset_small_selection(self) -> None:
+        self.drag_start = None
+        self.drag_current = None
+        self.status.set("That box was too small. Drag a larger box around the Japanese text.")
+        self.render()
+
+    def cancel(self, _event=None) -> None:
         self.finish(None)
 
     def finish(self, rect: dict[str, int] | None) -> None:
+        if self.finished:
+            return
+        self.finished = True
         self.window.destroy()
         self.callback(rect)
 
