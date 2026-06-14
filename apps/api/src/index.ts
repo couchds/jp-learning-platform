@@ -4,6 +4,7 @@ import cors from "cors";
 import { config } from "./config.js";
 import { getDb } from "./db/index.js";
 import { dashboardRouter } from "./routes/dashboard.js";
+import { desktopRouter } from "./routes/desktop.js";
 import { kanjiRouter } from "./routes/kanji.js";
 import { knowledgeRouter } from "./routes/knowledge.js";
 import { ocrRouter } from "./routes/ocr.js";
@@ -55,6 +56,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/uploads", express.static(config.uploadDir));
 app.use("/api/dashboard", dashboardRouter);
+app.use("/api/desktop", desktopRouter);
 app.use("/api/kanji", kanjiRouter);
 app.use("/api/knowledge", knowledgeRouter);
 app.use("/api/local/profile", profileRouter);

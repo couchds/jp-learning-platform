@@ -60,6 +60,38 @@ export function mapResource(row: ResourceRow) {
   };
 }
 
+export type ResourceTermRow = {
+  id: number;
+  resource_id: number;
+  term_type: string;
+  text: string;
+  reading: string | null;
+  meaning: string | null;
+  source: string;
+  source_image_id: number | null;
+  frequency: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export function mapResourceTerm(row: ResourceTermRow) {
+  return {
+    id: row.id,
+    resourceId: row.resource_id,
+    termType: row.term_type,
+    text: row.text,
+    reading: row.reading,
+    meaning: row.meaning,
+    source: row.source,
+    sourceImageId: row.source_image_id,
+    frequency: row.frequency,
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 export type WordSummaryRow = {
   id: number;
   entry_id: number;

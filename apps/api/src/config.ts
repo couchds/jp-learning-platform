@@ -25,6 +25,7 @@ function listFromEnv(value: string | undefined, fallback: string[]): string[] {
 
 export const config = {
   env: process.env.NODE_ENV ?? "development",
+  repoRoot,
   host: process.env.API_HOST ?? "127.0.0.1",
   port: Number.parseInt(process.env.API_PORT ?? "3001", 10),
   databasePath: process.env.DATABASE_PATH ?? path.join(repoRoot, "data/local/app.sqlite"),
@@ -38,7 +39,8 @@ export const config = {
   enableRequestLogging: boolFromEnv(process.env.API_REQUEST_LOGGING, true),
   ocrServiceUrl: process.env.OCR_SERVICE_URL ?? "http://127.0.0.1:5100",
   recognitionServiceUrl: process.env.RECOGNITION_SERVICE_URL ?? "http://127.0.0.1:5000",
-  speechServiceUrl: process.env.SPEECH_SERVICE_URL ?? "http://127.0.0.1:5200"
+  speechServiceUrl: process.env.SPEECH_SERVICE_URL ?? "http://127.0.0.1:5200",
+  overlayScriptPath: process.env.OVERLAY_SCRIPT_PATH ?? path.join(repoRoot, "services/desktop-overlay/overlay.py")
 };
 
 export type AppConfig = typeof config;

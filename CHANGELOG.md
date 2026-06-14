@@ -11,3 +11,4 @@ This project follows semantic versioning.
 - Add the local TypeScript API with SQLite persistence, local upload storage, and localhost OCR/recognition/speech service proxies.
 - Add local Python OCR, KanjiDraw recognition, and speech-model services.
 - Add the Vite/React local-first web app shell for resources, lookup, OCR, drawing recognition, and speech controls.
+- Add desktop overlay launch API, OCR-derived resource terms, quiz session persistence, and a local hotkey screen-capture OCR overlay client.

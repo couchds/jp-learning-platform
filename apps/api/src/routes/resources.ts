@@ -1,8 +1,18 @@
 import { Router } from "express";
 import { z } from "zod";
 import { getDb, readJson, touchNow, writeJson } from "../db/index.js";
-import { mapKanji, type KanjiRow, mapResource, type ResourceRow, mapWordSummary, type WordSummaryRow } from "../db/mappers.js";
+import {
+  mapKanji,
+  type KanjiRow,
+  mapResource,
+  type ResourceRow,
+  mapResourceTerm,
+  type ResourceTermRow,
+  mapWordSummary,
+  type WordSummaryRow
+} from "../db/mappers.js";
 import { asyncHandler, HttpError, parseLimitOffset } from "../lib/http.js";
+import { upsertResourceTerms } from "../services/ocrTerms.js";
 
 const resourceSchema = z.object({
   name: z.string().trim().min(1).max(500),
@@ -23,6 +33,35 @@ const customVocabularySchema = linkSchema.extend({
   word: z.string().trim().min(1).max(255),
   reading: z.string().trim().max(255).nullable().optional(),
   meaning: z.string().trim().max(2000).nullable().optional()
+});
+
+const resourceTermSchema = z.object({
+  termType: z.enum(["kanji", "word", "phrase", "kana", "unknown"]),
+  text: z.string().trim().min(1).max(255),
+  reading: z.string().trim().max(255).nullable().optional(),
+  meaning: z.string().trim().max(2000).nullable().optional(),
+  source: z.string().trim().max(80).default("manual"),
+  sourceImageId: z.number().int().positive().nullable().optional(),
+  frequency: z.number().int().min(1).default(1),
+  notes: z.string().trim().max(2000).nullable().optional()
+});
+
+const bulkTermsSchema = z.object({
+  terms: z.array(resourceTermSchema).min(1).max(200)
+});
+
+const quizSessionSchema = z.object({
+  mode: z.string().trim().min(1).max(80).default("resource"),
+  answers: z.array(
+    z.object({
+      prompt: z.string().trim().min(1).max(1000),
+      answer: z.string().trim().max(1000).nullable().optional(),
+      expectedAnswer: z.string().trim().max(1000).nullable().optional(),
+      correct: z.boolean(),
+      sourceType: z.string().trim().max(80).nullable().optional(),
+      sourceKey: z.string().trim().max(255).nullable().optional()
+    })
+  )
 });
 
 export const resourcesRouter = Router();
@@ -137,6 +176,9 @@ resourcesRouter.get(
       .prepare("SELECT * FROM resource_images WHERE resource_id = ? ORDER BY created_at DESC")
       .all(id)
       .map(mapResourceImage);
+    const terms = getDb()
+      .prepare("SELECT * FROM resource_terms WHERE resource_id = ? ORDER BY frequency DESC, updated_at DESC")
+      .all(id) as ResourceTermRow[];
 
     res.json({
       resource,
@@ -149,6 +191,7 @@ resourcesRouter.get(
         resource: { frequency: row.frequency, notes: row.notes }
       })),
       customVocabulary,
+      terms: terms.map(mapResourceTerm),
       images
     });
   })
@@ -278,6 +321,188 @@ resourcesRouter.post(
       );
 
     res.status(204).send();
+  })
+);
+
+resourcesRouter.get(
+  "/:id/terms",
+  asyncHandler((req, res) => {
+    const resourceId = Number(req.params.id);
+    getResourceOrThrow(resourceId);
+    const { limit, offset } = parseLimitOffset(req.query);
+    const rows = getDb()
+      .prepare(
+        `SELECT * FROM resource_terms
+         WHERE resource_id = ?
+         ORDER BY frequency DESC, updated_at DESC
+         LIMIT ? OFFSET ?`
+      )
+      .all(resourceId, limit, offset) as ResourceTermRow[];
+    const total = getDb()
+      .prepare("SELECT COUNT(*) AS count FROM resource_terms WHERE resource_id = ?")
+      .get(resourceId) as { count: number };
+
+    res.json({
+      items: rows.map(mapResourceTerm),
+      page: { limit, offset, total: total.count }
+    });
+  })
+);
+
+resourcesRouter.post(
+  "/:id/terms",
+  asyncHandler((req, res) => {
+    const resourceId = Number(req.params.id);
+    getResourceOrThrow(resourceId);
+    const term = resourceTermSchema.parse(req.body);
+    const terms = upsertResourceTerms(resourceId, [term]);
+    res.status(201).json({ terms });
+  })
+);
+
+resourcesRouter.post(
+  "/:id/terms/bulk",
+  asyncHandler((req, res) => {
+    const resourceId = Number(req.params.id);
+    getResourceOrThrow(resourceId);
+    const body = bulkTermsSchema.parse(req.body);
+    const terms = upsertResourceTerms(resourceId, body.terms);
+    res.status(201).json({ terms });
+  })
+);
+
+resourcesRouter.get(
+  "/:id/quiz/deck",
+  asyncHandler((req, res) => {
+    const resourceId = Number(req.params.id);
+    getResourceOrThrow(resourceId);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit ?? "20"), 10) || 20, 1), 50);
+
+    const terms = getDb()
+      .prepare(
+        `SELECT id, term_type, text, reading, meaning, frequency
+         FROM resource_terms
+         WHERE resource_id = ?
+         ORDER BY updated_at DESC, frequency DESC
+         LIMIT ?`
+      )
+      .all(resourceId, limit) as Array<{
+        id: number;
+        term_type: string;
+        text: string;
+        reading: string | null;
+        meaning: string | null;
+        frequency: number;
+      }>;
+
+    const customVocabulary = getDb()
+      .prepare(
+        `SELECT id, word, reading, meaning, frequency
+         FROM custom_vocabulary
+         WHERE resource_id = ?
+         ORDER BY updated_at DESC, frequency DESC
+         LIMIT ?`
+      )
+      .all(resourceId, limit) as Array<{
+        id: number;
+        word: string;
+        reading: string | null;
+        meaning: string | null;
+        frequency: number;
+      }>;
+
+    const questions = [
+      ...terms.map((term) => ({
+        id: `term:${term.id}`,
+        sourceType: term.term_type,
+        sourceKey: term.text,
+        prompt: term.text,
+        expectedAnswer: term.meaning || term.reading || term.text,
+        promptType: term.term_type,
+        frequency: term.frequency
+      })),
+      ...customVocabulary.map((term) => ({
+        id: `custom:${term.id}`,
+        sourceType: "custom_vocabulary",
+        sourceKey: term.word,
+        prompt: term.word,
+        expectedAnswer: term.meaning || term.reading || term.word,
+        promptType: "word",
+        frequency: term.frequency
+      }))
+    ]
+      .filter((question) => question.expectedAnswer)
+      .slice(0, limit);
+
+    res.json({ questions });
+  })
+);
+
+resourcesRouter.post(
+  "/:id/quiz/sessions",
+  asyncHandler((req, res) => {
+    const resourceId = Number(req.params.id);
+    getResourceOrThrow(resourceId);
+    const body = quizSessionSchema.parse(req.body);
+    const correct = body.answers.filter((answer) => answer.correct).length;
+    const now = touchNow();
+    const db = getDb();
+
+    const createSession = db.transaction(() => {
+      const session = db
+        .prepare(
+          `INSERT INTO quiz_sessions
+           (resource_id, mode, status, total_questions, correct_answers, completed_at)
+           VALUES (?, ?, 'completed', ?, ?, ?)`
+        )
+        .run(resourceId, body.mode, body.answers.length, correct, now);
+
+      const answerStatement = db.prepare(
+        `INSERT INTO quiz_answers
+         (session_id, prompt, answer, expected_answer, correct, source_type, source_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      );
+
+      for (const answer of body.answers) {
+        answerStatement.run(
+          session.lastInsertRowid,
+          answer.prompt,
+          answer.answer ?? null,
+          answer.expectedAnswer ?? null,
+          answer.correct ? 1 : 0,
+          answer.sourceType ?? null,
+          answer.sourceKey ?? null
+        );
+      }
+
+      return session.lastInsertRowid;
+    });
+
+    const sessionId = createSession();
+    const session = db.prepare("SELECT * FROM quiz_sessions WHERE id = ?").get(sessionId);
+    res.status(201).json({ session });
+  })
+);
+
+resourcesRouter.get(
+  "/:id/quiz/sessions",
+  asyncHandler((req, res) => {
+    const resourceId = Number(req.params.id);
+    getResourceOrThrow(resourceId);
+    const { limit, offset } = parseLimitOffset(req.query);
+    const sessions = getDb()
+      .prepare(
+        `SELECT * FROM quiz_sessions
+         WHERE resource_id = ?
+         ORDER BY created_at DESC
+         LIMIT ? OFFSET ?`
+      )
+      .all(resourceId, limit, offset);
+    const total = getDb()
+      .prepare("SELECT COUNT(*) AS count FROM quiz_sessions WHERE resource_id = ?")
+      .get(resourceId) as { count: number };
+
+    res.json({ items: sessions, page: { limit, offset, total: total.count } });
   })
 );
 

@@ -18,6 +18,7 @@ apps/
   api/       Local TypeScript API
   web/       React frontend
 services/
+  desktop-overlay/ Hotkey screen-capture OCR overlay
   ocr/       Local Japanese OCR service
   recognize/ KanjiDraw handwriting recognition service
   speech-model/ Local pronunciation model training and prediction
@@ -52,6 +53,14 @@ npm run dev
 Python services will each have their own virtual environment and `requirements.txt`. Heavy OCR and speech model dependencies are kept out of Node installation so the app can boot even when those optional services are not running.
 
 Run optional companion services in separate terminals:
+
+```bash
+cd services/desktop-overlay
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python overlay.py
+```
 
 ```bash
 cd services/recognize
@@ -97,6 +106,8 @@ Downloaded dictionary files should stay outside git. Import scripts will documen
 ## Local API Surface
 
 - `GET /health`
+- `GET /api/desktop/overlay/status`
+- `POST /api/desktop/overlay/launch`
 - `GET|PUT /api/local/profile`
 - `GET /api/dashboard`
 - `GET /api/kanji`
@@ -108,6 +119,12 @@ Downloaded dictionary files should stay outside git. Import scripts will documen
 - `POST /api/resources/:id/kanji/:kanjiId`
 - `POST /api/resources/:id/words/:wordId`
 - `POST /api/resources/:id/custom-vocabulary`
+- `GET /api/resources/:id/terms`
+- `POST /api/resources/:id/terms`
+- `POST /api/resources/:id/terms/bulk`
+- `GET /api/resources/:id/quiz/deck`
+- `GET /api/resources/:id/quiz/sessions`
+- `POST /api/resources/:id/quiz/sessions`
 - `GET|PUT /api/knowledge`
 - `GET /api/ocr/health`
 - `POST /api/ocr/image`
@@ -123,9 +140,23 @@ Downloaded dictionary files should stay outside git. Import scripts will documen
 
 ## Local Companion Services
 
+- Desktop OCR overlay: `services/desktop-overlay`, default hotkey `ctrl+shift+o`.
 - OCR: `services/ocr`, default `http://127.0.0.1:5100`, local `manga-ocr` or `easyocr`.
 - KanjiDraw recognition: `services/recognize`, default `http://127.0.0.1:5000`.
 - Speech model: `services/speech-model`, default `http://127.0.0.1:5200`.
+
+## Desktop OCR Overlay
+
+The desktop overlay is the intended game/browser workflow:
+
+1. Start the API, web app, and OCR service.
+2. Launch the overlay from the web control panel or run `python services/desktop-overlay/overlay.py`.
+3. Select a resource.
+4. Press `ctrl+shift+o`.
+5. Drag over any visible game, browser tab, emulator, or document text.
+6. Review OCR terms and add selected words/kanji to the resource tracker.
+
+macOS may require Screen Recording and Accessibility permissions for the terminal or Python executable.
 
 ## Versioning
 

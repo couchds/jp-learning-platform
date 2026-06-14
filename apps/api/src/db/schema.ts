@@ -181,6 +181,60 @@ const migrations: Array<{ id: number; name: string; sql: string }> = [
         UNIQUE(item_type, item_key)
       );
     `
+  },
+  {
+    id: 2,
+    name: "resource_terms_and_quizzes",
+    sql: `
+      CREATE TABLE IF NOT EXISTS resource_terms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        resource_id INTEGER NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+        term_type TEXT NOT NULL,
+        text TEXT NOT NULL,
+        reading TEXT,
+        meaning TEXT,
+        source TEXT NOT NULL DEFAULT 'manual',
+        source_image_id INTEGER REFERENCES resource_images(id) ON DELETE SET NULL,
+        frequency INTEGER NOT NULL DEFAULT 1,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(resource_id, term_type, text)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_resource_terms_resource_id ON resource_terms(resource_id);
+      CREATE INDEX IF NOT EXISTS idx_resource_terms_text ON resource_terms(text);
+      CREATE INDEX IF NOT EXISTS idx_resource_terms_type ON resource_terms(term_type);
+
+      CREATE TABLE IF NOT EXISTS quiz_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        resource_id INTEGER REFERENCES resources(id) ON DELETE SET NULL,
+        mode TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'completed',
+        total_questions INTEGER NOT NULL DEFAULT 0,
+        correct_answers INTEGER NOT NULL DEFAULT 0,
+        started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        completed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_quiz_sessions_resource_id ON quiz_sessions(resource_id);
+      CREATE INDEX IF NOT EXISTS idx_quiz_sessions_created_at ON quiz_sessions(created_at);
+
+      CREATE TABLE IF NOT EXISTS quiz_answers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL REFERENCES quiz_sessions(id) ON DELETE CASCADE,
+        prompt TEXT NOT NULL,
+        answer TEXT,
+        expected_answer TEXT,
+        correct INTEGER NOT NULL DEFAULT 0,
+        source_type TEXT,
+        source_key TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_quiz_answers_session_id ON quiz_answers(session_id);
+    `
   }
 ];
 

@@ -3,6 +3,7 @@ import { config } from "../config.js";
 import { getDb, readJson, touchNow, writeJson } from "../db/index.js";
 import { asyncHandler, HttpError } from "../lib/http.js";
 import { imageUpload, relativeUploadPath } from "../services/localUpload.js";
+import { termsFromOcrElements, upsertResourceTerms } from "../services/ocrTerms.js";
 import { getJson, postFile } from "../services/serviceProxy.js";
 
 type OcrResponse = {
@@ -41,7 +42,10 @@ ocrRouter.post(
     }
 
     const result = await runOcr(req.file.path, req.file.originalname, req.file.mimetype);
-    res.json(result);
+    res.json({
+      ...result,
+      terms: termsFromOcrElements(result.elements)
+    });
   })
 );
 
@@ -86,10 +90,20 @@ ocrRouter.post(
     const image = getDb()
       .prepare("SELECT * FROM resource_images WHERE id = ?")
       .get(saved.lastInsertRowid);
+    const suggestedTerms = termsFromOcrElements(result.elements).map((term) => ({
+      ...term,
+      sourceImageId: Number(saved.lastInsertRowid)
+    }));
+    const trackedTerms =
+      req.query.track === "true" ? upsertResourceTerms(resourceId, suggestedTerms) : [];
 
     res.status(201).json({
       image: mapImage(image),
-      ocr: result
+      ocr: {
+        ...result,
+        terms: suggestedTerms
+      },
+      trackedTerms
     });
   })
 );
