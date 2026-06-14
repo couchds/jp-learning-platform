@@ -14,6 +14,11 @@ type OcrResponse = {
   raw_text?: string;
   rawText?: string;
   elements?: unknown[];
+  backend?: string;
+  active_backend?: string;
+  boxes_available?: boolean;
+  image_width?: number;
+  image_height?: number;
   error?: string;
 };
 
@@ -55,15 +60,16 @@ ocrRouter.post(
     }
 
     const currentHealth = await getOcrHealth();
-    if (currentHealth.available) {
-      res.status(200).json({
+    if (currentHealth.available || (currentHealth.reachable && currentHealth.expectedService)) {
+      res.status(currentHealth.available ? 200 : 202).json({
         launched: false,
         alreadyRunning: true,
         service: "ocr",
         url: config.ocrServiceUrl,
         python: fsSync.existsSync(config.ocrPythonPath) ? "venv" : "system",
         health: currentHealth.payload,
-        available: currentHealth.available
+        available: currentHealth.available,
+        error: currentHealth.available ? undefined : currentHealth.reason
       });
       return;
     }
@@ -253,7 +259,12 @@ async function runOcr(filePath: string, filename: string, mimeType: string) {
 
   return {
     rawText: response.rawText ?? response.raw_text ?? "",
-    elements: response.elements ?? []
+    elements: response.elements ?? [],
+    backend: response.backend,
+    activeBackend: response.active_backend,
+    boxesAvailable: response.boxes_available,
+    imageWidth: response.image_width,
+    imageHeight: response.image_height
   };
 }
 

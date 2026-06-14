@@ -19,6 +19,18 @@ import type {
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:3001";
 
+class ApiRequestError extends Error {
+  status: number;
+  payload: unknown;
+
+  constructor(message: string, status: number, payload: unknown) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -33,10 +45,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const message = payload?.error ?? `Request failed with ${response.status}`;
-    throw new Error(message);
+    throw new ApiRequestError(message, response.status, payload);
   }
 
   return payload as T;
+}
+
+async function requestServiceHealth(path: string) {
+  try {
+    return await request<ServiceHealth>(path);
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.payload && typeof error.payload === "object") {
+      return error.payload as ServiceHealth;
+    }
+
+    throw error;
+  }
 }
 
 export const api = {
@@ -48,7 +72,7 @@ export const api = {
     return Promise.all(
       paths.map(async (path) => {
         try {
-          return await request<ServiceHealth>(path);
+          return await requestServiceHealth(path);
         } catch (error) {
           return {
             service: path.split("/")[2],
@@ -60,7 +84,7 @@ export const api = {
       })
     );
   },
-  ocrHealth: () => request<ServiceHealth>("/api/ocr/health"),
+  ocrHealth: () => requestServiceHealth("/api/ocr/health"),
   launchOcrService: () =>
     request<LocalServiceLaunch>("/api/ocr/service/launch", {
       method: "POST",

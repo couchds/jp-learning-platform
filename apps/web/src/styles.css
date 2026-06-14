@@ -919,6 +919,10 @@ canvas {
   color: #257057;
 }
 
+.service-launch-card.warming svg {
+  color: #9a6400;
+}
+
 .service-launch-card.offline svg {
   color: #a6462f;
 }

@@ -4,6 +4,14 @@ All notable changes to this project will be documented here.
 
 This project follows semantic versioning.
 
+## 0.4.1 - 2026-06-14
+
+- Preserve EasyOCR bounding boxes through the local OCR API.
+- Add captured-image preview and OCR highlight boxes to the desktop overlay.
+- Report OCR model warmup state in the browser and avoid duplicate OCR model/process starts while warming.
+- Default OCR to `auto`, preferring EasyOCR highlights when installed and falling back to MangaOCR text recognition.
+- Document the box-aware OCR overlay workflow and reproducible OCR engine dependencies.
+
 ## 0.4.0 - 2026-06-14
 
 - Add a local OCR service launcher endpoint for starting `services/ocr/app.py` from the API.

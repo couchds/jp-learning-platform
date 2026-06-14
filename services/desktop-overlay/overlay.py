@@ -20,7 +20,7 @@ from typing import Any
 import requests
 import tkinter as tk
 from tkinter import messagebox, ttk
-from PIL import Image
+from PIL import Image, ImageStat, ImageTk
 from pynput import keyboard
 import mss
 
@@ -72,6 +72,39 @@ class Term:
         }
 
 
+@dataclass
+class Highlight:
+    text: str
+    element_type: str
+    bbox: dict[str, float]
+    confidence: float | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "Highlight | None":
+        bbox = payload.get("bbox")
+        if not isinstance(bbox, dict):
+            return None
+
+        try:
+            x = float(bbox["x"])
+            y = float(bbox["y"])
+            width = float(bbox["width"])
+            height = float(bbox["height"])
+        except (KeyError, TypeError, ValueError):
+            return None
+
+        if width <= 0 or height <= 0:
+            return None
+
+        confidence = payload.get("confidence")
+        return cls(
+            text=str(payload.get("text") or ""),
+            element_type=str(payload.get("element_type") or payload.get("elementType") or "unknown"),
+            bbox={"x": x, "y": y, "width": width, "height": height},
+            confidence=float(confidence) if isinstance(confidence, (int, float)) else None,
+        )
+
+
 class OverlayApp:
     def __init__(self) -> None:
         self.root = tk.Tk()
@@ -89,6 +122,9 @@ class OverlayApp:
         self.resources: list[Resource] = []
         self.selected_resource_id: int | None = self.config.get("resource_id")
         self.last_terms: list[Term] = []
+        self.last_highlights: list[Highlight] = []
+        self.last_image: Image.Image | None = None
+        self.preview_photo: ImageTk.PhotoImage | None = None
         self.term_vars: list[tk.BooleanVar] = []
         self.hotkey_listener: keyboard.GlobalHotKeys | None = None
 
@@ -169,6 +205,16 @@ class OverlayApp:
 
         result_frame = ttk.LabelFrame(outer, text="OCR result", padding=12)
         result_frame.pack(fill=tk.BOTH, expand=True, pady=8)
+        self.preview_canvas = tk.Canvas(result_frame, height=220, bg="#191814", highlightthickness=0)
+        self.preview_canvas.pack(fill=tk.X, pady=(0, 10))
+        self.preview_canvas.create_text(
+            14,
+            14,
+            anchor=tk.NW,
+            text="Captured text preview and OCR highlights will appear here.",
+            fill="#f7efe0",
+        )
+
         self.raw_text = tk.Text(result_frame, height=6, wrap=tk.WORD)
         self.raw_text.pack(fill=tk.X)
 
@@ -296,7 +342,10 @@ class OverlayApp:
         try:
             image = self.capture_rect(rect)
             self.root.deiconify()
-            self.submit_ocr(image)
+            status = "Running OCR..."
+            if self.image_looks_blank(image):
+                status = "Running OCR... Capture looks blank; macOS may need Screen Recording permission."
+            self.submit_ocr(image, status)
         except Exception as exc:
             self.root.deiconify()
             messagebox.showerror("Capture failed", str(exc))
@@ -307,10 +356,14 @@ class OverlayApp:
             grabbed = screen.grab(rect)
             return Image.frombytes("RGB", grabbed.size, grabbed.rgb)
 
-    def submit_ocr(self, image: Image.Image) -> None:
-        self.status.set("Running OCR...")
+    def image_looks_blank(self, image: Image.Image) -> bool:
+        extrema = ImageStat.Stat(image.convert("L")).extrema[0]
+        return (extrema[1] - extrema[0]) < 4
+
+    def submit_ocr(self, image: Image.Image, status: str = "Running OCR...") -> None:
+        self.status.set(status)
         api_url = self.api_url.get().rstrip("/")
-        threading.Thread(target=self.submit_ocr_worker, args=(api_url, image), daemon=True).start()
+        threading.Thread(target=self.submit_ocr_worker, args=(api_url, image.copy()), daemon=True).start()
 
     def submit_ocr_worker(self, api_url: str, image: Image.Image) -> None:
         buffer = io.BytesIO()
@@ -324,21 +377,48 @@ class OverlayApp:
             payload = response.json()
             ocr = payload.get("ocr", payload)
             terms = [Term.from_payload(term) for term in ocr.get("terms", []) if term.get("text")]
+            highlights = [
+                highlight
+                for highlight in (
+                    Highlight.from_payload(element)
+                    for element in ocr.get("elements", [])
+                    if isinstance(element, dict)
+                )
+                if highlight is not None
+            ]
             raw_text = str(ocr.get("rawText") or ocr.get("raw_text") or "")
-            self.root.after(0, lambda: self.apply_ocr_result(raw_text, terms))
+            self.root.after(0, lambda: self.apply_ocr_result(raw_text, terms, highlights, image))
         except Exception as exc:
             self.root.after(0, lambda exc=exc: self.show_ocr_error(exc))
 
-    def apply_ocr_result(self, raw_text: str, terms: list[Term]) -> None:
+    def apply_ocr_result(
+        self,
+        raw_text: str,
+        terms: list[Term],
+        highlights: list[Highlight],
+        image: Image.Image,
+    ) -> None:
         self.last_terms = terms
-        self.render_result(raw_text, self.last_terms)
-        self.status.set(f"OCR complete: {len(self.last_terms)} term candidates")
+        self.last_highlights = highlights
+        self.last_image = image
+        self.render_result(raw_text, self.last_terms, self.last_highlights, image)
+        if not raw_text.strip():
+            self.status.set("No text found. Try a tighter crop, larger text, or the EasyOCR backend.")
+        else:
+            self.status.set(f"OCR complete: {len(self.last_terms)} terms, {len(self.last_highlights)} highlights")
 
     def show_ocr_error(self, exc: Exception) -> None:
         messagebox.showerror("OCR failed", str(exc))
         self.status.set(f"OCR failed: {exc}")
 
-    def render_result(self, raw_text: str, terms: list[Term]) -> None:
+    def render_result(
+        self,
+        raw_text: str,
+        terms: list[Term],
+        highlights: list[Highlight],
+        image: Image.Image,
+    ) -> None:
+        self.render_preview(image, highlights)
         self.raw_text.delete("1.0", tk.END)
         self.raw_text.insert("1.0", raw_text)
 
@@ -355,6 +435,48 @@ class OverlayApp:
             self.term_vars.append(var)
             label = f"{term.text}  [{term.term_type}]"
             ttk.Checkbutton(self.terms_frame, text=label, variable=var).pack(anchor=tk.W, pady=2)
+
+    def render_preview(self, image: Image.Image, highlights: list[Highlight]) -> None:
+        self.preview_canvas.delete("all")
+        self.preview_canvas.update_idletasks()
+
+        max_width = max(self.preview_canvas.winfo_width(), 640)
+        max_height = 260
+        scale = min(max_width / image.width, max_height / image.height, 1.0)
+        preview_size = (max(1, int(image.width * scale)), max(1, int(image.height * scale)))
+        preview = image.resize(preview_size)
+        self.preview_photo = ImageTk.PhotoImage(preview)
+        self.preview_canvas.configure(height=preview_size[1])
+        self.preview_canvas.create_image(0, 0, anchor=tk.NW, image=self.preview_photo)
+
+        for highlight in highlights:
+            bbox = highlight.bbox
+            x1 = bbox["x"] * scale
+            y1 = bbox["y"] * scale
+            x2 = (bbox["x"] + bbox["width"]) * scale
+            y2 = (bbox["y"] + bbox["height"]) * scale
+            color = "#ffd166" if highlight.element_type == "kanji" else "#50e3c2"
+            self.preview_canvas.create_rectangle(x1, y1, x2, y2, outline=color, width=2)
+            if highlight.text and bbox["width"] * scale > 18:
+                self.preview_canvas.create_text(
+                    x1 + 3,
+                    max(2, y1 - 14),
+                    anchor=tk.NW,
+                    text=highlight.text,
+                    fill=color,
+                    font=("TkDefaultFont", 10, "bold"),
+                )
+
+        if not highlights:
+            self.preview_canvas.create_rectangle(0, 0, preview_size[0], preview_size[1], outline="#d65f5f", width=2)
+            self.preview_canvas.create_text(
+                12,
+                12,
+                anchor=tk.NW,
+                text="No OCR boxes returned. Restart OCR with EasyOCR/auto for highlights, or try a tighter crop.",
+                fill="#ffd166",
+                width=max(200, preview_size[0] - 24),
+            )
 
     def add_selected_terms(self) -> None:
         if self.selected_resource_id is None:

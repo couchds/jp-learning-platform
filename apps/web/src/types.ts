@@ -122,6 +122,7 @@ export type LocalServiceLaunch = {
   python?: "venv" | "system";
   available?: boolean;
   health?: unknown;
+  error?: string;
 };
 
 export type RuntimeDoctorStatus = "ok" | "warn" | "error";
@@ -145,8 +146,23 @@ export type OcrResult = {
     text: string;
     element_type: string;
     features: Record<string, unknown>;
+    bbox?: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      points?: Array<{ x: number; y: number }>;
+    };
+    confidence?: number;
+    detection_index?: number;
+    bbox_source?: string;
   }>;
   terms?: Array<Omit<ResourceTerm, "id" | "resourceId" | "createdAt" | "updatedAt">>;
+  backend?: string;
+  activeBackend?: string;
+  boxesAvailable?: boolean;
+  imageWidth?: number;
+  imageHeight?: number;
 };
 
 export type RecognitionResult = {
