@@ -9,7 +9,18 @@ This repository is intentionally starting fresh. The previous app's public-facin
 - **Local-first:** SQLite and local file storage are the default persistence layer.
 - **No bundled secrets:** `.env` files, API keys, service account material, trained models, uploads, and local databases are ignored.
 - **Composable services:** the web app, API, OCR service, kanji handwriting recognition service, and speech model service are separate local processes.
-- **Semver:** the rebuild starts at `0.1.0`; user-facing or API-contract changes should update the root package version and changelog.
+- **Semver:** the current local product version is `0.2.0`; user-facing or API-contract changes should update the root package version and changelog.
+
+## Product Features
+
+- Browser control center with a landing page, local service status, and desktop overlay launch controls.
+- Any-window OCR workflow through the desktop companion for games, browser tabs, emulators, videos, and documents.
+- Resource library for manga, games, books, anime, websites, podcasts, and other study sources.
+- Resource term tracker for OCR-derived or manually added kanji, words, kana, and phrases.
+- Resource quizzes generated from tracked terms, with local quiz-session history.
+- Japanese lookup across local kanji and dictionary data.
+- Handwritten kanji recognition through the local KanjiDraw service.
+- Local speech-model controls for pronunciation data export and lightweight training.
 
 ## Repository Layout
 
@@ -49,6 +60,8 @@ Run the web app and API together:
 ```bash
 npm run dev
 ```
+
+Open the browser app at `http://127.0.0.1:5173`.
 
 Python services will each have their own virtual environment and `requirements.txt`. Heavy OCR and speech model dependencies are kept out of Node installation so the app can boot even when those optional services are not running.
 
@@ -150,11 +163,12 @@ Downloaded dictionary files should stay outside git. Import scripts will documen
 The desktop overlay is the intended game/browser workflow:
 
 1. Start the API, web app, and OCR service.
-2. Launch the overlay from the web control panel or run `python services/desktop-overlay/overlay.py`.
-3. Select a resource.
-4. Press `ctrl+shift+o`.
-5. Drag over any visible game, browser tab, emulator, or document text.
-6. Review OCR terms and add selected words/kanji to the resource tracker.
+2. Open the browser control center.
+3. Launch the overlay from the Capture page or run `python services/desktop-overlay/overlay.py`.
+4. Select a resource in the overlay.
+5. Press `ctrl+shift+o`.
+6. Drag over any visible game, browser tab, emulator, or document text.
+7. Review OCR terms and add selected words/kanji to the resource tracker.
 
 macOS may require Screen Recording and Accessibility permissions for the terminal or Python executable.
 

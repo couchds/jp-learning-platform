@@ -38,6 +38,51 @@ export type Resource = {
   updatedAt: string;
 };
 
+export type ResourceTerm = {
+  id: number;
+  resourceId: number;
+  termType: "kanji" | "word" | "phrase" | "kana" | "unknown";
+  text: string;
+  reading: string | null;
+  meaning: string | null;
+  source: string;
+  sourceImageId: number | null;
+  frequency: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ResourceDetail = {
+  resource: Resource;
+  kanji: Array<Kanji & { resource?: { frequency: number; notes: string | null } }>;
+  words: Array<Word & { resource?: { frequency: number; notes: string | null } }>;
+  customVocabulary: Array<{
+    id: number;
+    resource_id: number;
+    word: string;
+    reading: string | null;
+    meaning: string | null;
+    frequency: number;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
+  terms: ResourceTerm[];
+  images: Array<{
+    id: number;
+    resourceId: number | null;
+    filePath: string;
+    originalName: string | null;
+    mimeType: string | null;
+    sizeBytes: number | null;
+    ocrText: string | null;
+    ocrElements: unknown[];
+    createdAt: string;
+    updatedAt: string;
+  }>;
+};
+
 export type Kanji = {
   id: number;
   literal: string;
@@ -74,6 +119,7 @@ export type OcrResult = {
     element_type: string;
     features: Record<string, unknown>;
   }>;
+  terms?: Array<Omit<ResourceTerm, "id" | "resourceId" | "createdAt" | "updatedAt">>;
 };
 
 export type RecognitionResult = {
@@ -81,4 +127,40 @@ export type RecognitionResult = {
   stroke_count?: number;
   results?: Array<{ kanji: string; score: number }>;
   error?: string;
+};
+
+export type DesktopOverlayStatus = {
+  available: boolean;
+  overlay: string;
+  apiUrl: string;
+};
+
+export type QuizQuestion = {
+  id: string;
+  sourceType: string;
+  sourceKey: string;
+  prompt: string;
+  expectedAnswer: string;
+  promptType: string;
+  frequency: number;
+};
+
+export type QuizAnswerPayload = {
+  prompt: string;
+  answer: string | null;
+  expectedAnswer: string | null;
+  correct: boolean;
+  sourceType: string | null;
+  sourceKey: string | null;
+};
+
+export type QuizSession = {
+  id: number;
+  resource_id: number;
+  mode: string;
+  status: string;
+  total_questions: number;
+  correct_answers: number;
+  completed_at: string | null;
+  created_at: string;
 };
