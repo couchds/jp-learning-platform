@@ -204,7 +204,7 @@ class OverlayApp:
         action_frame.pack(fill=tk.X, pady=10)
         ttk.Button(action_frame, text="Scan Screen", command=self.scan_screen).pack(side=tk.LEFT)
         ttk.Button(action_frame, text="Capture Region", command=self.capture_region).pack(side=tk.LEFT, padx=(8, 0))
-        ttk.Button(action_frame, text="Add Selected Terms", command=self.add_selected_terms).pack(side=tk.LEFT, padx=8)
+        ttk.Button(action_frame, text="Save selected terms", command=self.add_selected_terms).pack(side=tk.LEFT, padx=8)
         ttk.Label(action_frame, textvariable=self.resource_label).pack(side=tk.RIGHT)
 
         result_frame = ttk.LabelFrame(outer, text="OCR result", padding=12)
@@ -700,7 +700,7 @@ class ScreenReviewOverlay:
         tk.Label(topbar, textvariable=self.status, bg="#181712", fg="#d4c8b5").pack(side=tk.LEFT, padx=10)
         tk.Button(topbar, text="Close", command=self.close).pack(side=tk.RIGHT, padx=(6, 14), pady=8)
         tk.Button(topbar, text="Precise Region", command=self.precise_region).pack(side=tk.RIGHT, padx=6, pady=8)
-        tk.Button(topbar, text="Add Selected", command=self.add_selected).pack(side=tk.RIGHT, padx=6, pady=8)
+        tk.Button(topbar, text="Save selected terms", command=self.add_selected).pack(side=tk.RIGHT, padx=6, pady=8)
 
         body = tk.Frame(self.window, bg="#080807")
         body.pack(fill=tk.BOTH, expand=True)
@@ -715,11 +715,19 @@ class ScreenReviewOverlay:
 
         tk.Label(
             side,
-            text="Terms",
+            text="Terms to save",
             bg="#151411",
             fg="#f8efe0",
             font=("TkDefaultFont", 13, "bold"),
         ).pack(anchor=tk.W, padx=12, pady=(12, 4))
+        tk.Label(
+            side,
+            text="Selected rows are saved to the resource chosen in the control panel.",
+            bg="#151411",
+            fg="#d4c8b5",
+            wraplength=292,
+            justify=tk.LEFT,
+        ).pack(anchor=tk.W, padx=12, pady=(0, 8))
         self.terms_list = tk.Listbox(
             side,
             selectmode=tk.MULTIPLE,
@@ -846,12 +854,14 @@ class ScreenReviewOverlay:
             self.status.set(f"Adding {len(selected)} selected terms...")
 
     def precise_region(self) -> None:
+        start_precise_region = self.on_precise_region
         self.close(show_control_panel=False)
-        self.on_precise_region()
+        self.root.after(180, start_precise_region)
 
     def close(self, show_control_panel: bool = True) -> None:
         if self.window.winfo_exists():
             self.window.destroy()
+        self.root.update_idletasks()
         self.on_close(show_control_panel)
 
 
@@ -871,9 +881,23 @@ class RegionSelector:
 
         self.canvas = tk.Canvas(self.window, cursor="crosshair", bg="black", highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.canvas.create_text(
+            28,
+            28,
+            anchor=tk.NW,
+            text="Click and drag over the Japanese text. Press Esc to cancel.",
+            fill="white",
+            font=("TkDefaultFont", 18, "bold"),
+        )
         self.canvas.bind("<ButtonPress-1>", self.on_press)
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
+        self.window.after(30, self.focus)
+
+    def focus(self) -> None:
+        self.window.lift()
+        self.window.focus_force()
+        self.canvas.focus_set()
 
     def on_press(self, event) -> None:
         self.start_x = event.x_root
