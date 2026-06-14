@@ -29,10 +29,23 @@ data/local/  Ignored local runtime data
 
 ## Local Development
 
-The implementation is being rebuilt in slices. Once the API and web app land, the expected local workflow will be:
+Install Node dependencies:
 
 ```bash
 npm install
+```
+
+Run the local API:
+
+```bash
+npm run dev --workspace @jp-learning-platform/api
+```
+
+The API listens on `http://127.0.0.1:3001` by default, creates a SQLite database at `data/local/app.sqlite`, and stores uploads under `uploads/`.
+
+Once the web app lands, the expected full workflow will be:
+
+```bash
 npm run dev
 ```
 
@@ -53,6 +66,32 @@ Downloaded dictionary files should stay outside git. Import scripts will documen
 - Do not commit `.env`, database files, uploaded images, audio recordings, or trained model artifacts.
 - Prefer local service URLs such as `http://127.0.0.1:5000` and `http://127.0.0.1:5100`.
 - Cloud deployment, hosted object storage, hosted auth, and public internet exposure are explicitly out of scope for this rebuild phase.
+
+## Local API Surface
+
+- `GET /health`
+- `GET|PUT /api/local/profile`
+- `GET /api/dashboard`
+- `GET /api/kanji`
+- `GET /api/kanji/:idOrLiteral`
+- `GET /api/words`
+- `GET /api/words/:id`
+- `GET|POST /api/resources`
+- `GET|PUT|DELETE /api/resources/:id`
+- `POST /api/resources/:id/kanji/:kanjiId`
+- `POST /api/resources/:id/words/:wordId`
+- `POST /api/resources/:id/custom-vocabulary`
+- `GET|PUT /api/knowledge`
+- `GET /api/ocr/health`
+- `POST /api/ocr/image`
+- `POST /api/ocr/resources/:resourceId/images`
+- `GET /api/recognize/health`
+- `POST /api/recognize`
+- `GET /api/speech/health`
+- `GET /api/speech/info`
+- `POST /api/speech/train`
+- `POST /api/speech/predict`
+- `POST /api/speech/recordings`
 
 ## Versioning
 

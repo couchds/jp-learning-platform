@@ -10,11 +10,11 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "node -e \"console.log('No app workspaces yet.')\"",
-    "check": "node -e \"console.log('No app workspaces yet.')\"",
-    "dev": "node -e \"console.log('Add an app workspace before running dev.')\"",
-    "format": "node -e \"console.log('No app workspaces yet.')\"",
-    "test": "node -e \"console.log('No app workspaces yet.')\""
+    "build": "npm run build --workspaces --if-present",
+    "check": "npm run check --workspaces --if-present",
+    "dev": "npm run dev --workspace @jp-learning-platform/api",
+    "format": "npm run format --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
   },
   "engines": {
     "node": ">=20"
