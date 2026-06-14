@@ -172,6 +172,8 @@ The desktop overlay is the intended game/browser workflow:
 
 macOS may require Screen Recording and Accessibility permissions for the terminal or Python executable.
 
+The browser launcher uses `services/desktop-overlay/.venv/bin/python` when that virtual environment exists. Create it with the desktop overlay setup commands above before launching from the Capture page.
+
 ## Versioning
 
 This project follows semver.

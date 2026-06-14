@@ -14,6 +14,8 @@ python overlay.py
 
 The overlay talks to the local API at `http://127.0.0.1:3001` by default. The API can also launch it from the web app control panel through `POST /api/desktop/overlay/launch`.
 
+The browser launcher prefers `services/desktop-overlay/.venv/bin/python` when that virtual environment exists. If it is missing, the launcher falls back to the system `python3`, which must have the packages from `requirements.txt` installed.
+
 ## Flow
 
 1. Start the API and OCR service.

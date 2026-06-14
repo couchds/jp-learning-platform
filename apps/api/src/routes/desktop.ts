@@ -15,6 +15,7 @@ desktopRouter.get(
     res.json({
       available: fs.existsSync(config.overlayScriptPath),
       overlay: "desktop-overlay",
+      python: fs.existsSync(config.overlayPythonPath) ? "venv" : "system",
       apiUrl: `http://${config.host}:${config.port}`
     });
   })
@@ -38,34 +39,57 @@ desktopRouter.post(
       return;
     }
 
-    const child = spawn("python3", [config.overlayScriptPath], {
+    const pythonCommand = fs.existsSync(config.overlayPythonPath) ? config.overlayPythonPath : "python3";
+    const child = spawn(pythonCommand, [config.overlayScriptPath], {
       cwd: config.repoRoot,
       detached: true,
-      stdio: "ignore",
+      stdio: ["ignore", "ignore", "pipe"],
       env: {
         ...process.env,
         YOMUNAMI_API_URL: `http://${config.host}:${config.port}`
       }
     });
 
+    const startupErrors: string[] = [];
+    const appendStartupError = (chunk: Buffer | string) => {
+      startupErrors.push(String(chunk));
+      if (startupErrors.join("").length > 4096) {
+        startupErrors.splice(0, startupErrors.length - 1);
+      }
+    };
+
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
-        child.off("exit", onExit);
+        cleanup();
         resolve();
       }, 600);
 
-      function onError(error: Error) {
+      function cleanup() {
         clearTimeout(timer);
+        child.off("error", onError);
         child.off("exit", onExit);
+        child.stderr?.off("data", appendStartupError);
+        (child.stderr as (typeof child.stderr & { unref?: () => void }) | null)?.unref?.();
+      }
+
+      function onError(error: Error) {
+        cleanup();
         reject(error);
       }
 
       function onExit(code: number | null, signal: NodeJS.Signals | null) {
-        clearTimeout(timer);
-        child.off("error", onError);
-        reject(new Error(`process exited during startup with ${signal ?? `code ${code ?? "unknown"}`}`));
+        cleanup();
+        const detail = summarizeStartupError(startupErrors.join(""));
+        reject(
+          new Error(
+            `process exited during startup with ${signal ?? `code ${code ?? "unknown"}`}${
+              detail ? `: ${detail}` : ""
+            }`
+          )
+        );
       }
 
+      child.stderr?.on("data", appendStartupError);
       child.once("error", onError);
       child.once("exit", onExit);
     }).catch((error: unknown) => {
@@ -83,7 +107,17 @@ desktopRouter.post(
     res.status(202).json({
       launched: true,
       pid: child.pid,
-      overlay: "desktop-overlay"
+      overlay: "desktop-overlay",
+      python: fs.existsSync(config.overlayPythonPath) ? "venv" : "system"
     });
   })
 );
+
+function summarizeStartupError(stderr: string) {
+  const lines = stderr
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines.at(-1) ?? "";
+}

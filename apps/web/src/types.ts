@@ -132,6 +132,7 @@ export type RecognitionResult = {
 export type DesktopOverlayStatus = {
   available: boolean;
   overlay: string;
+  python?: "venv" | "system";
   apiUrl: string;
 };
 

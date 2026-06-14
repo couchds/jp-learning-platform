@@ -494,7 +494,13 @@ function CaptureView({ onChange }: { onChange: () => void }) {
       <div className="panel overlay-panel">
         <div className="panel-heading">
           <h2>Desktop Overlay</h2>
-          <span>{overlay.loading ? "checking" : overlay.data?.available ? "installed" : "missing"}</span>
+          <span>
+            {overlay.loading
+              ? "checking"
+              : `${overlay.data?.available ? "installed" : "missing"}${
+                  overlay.data?.python ? ` · ${overlay.data.python}` : ""
+                }`}
+          </span>
         </div>
         <div className="overlay-status">
           <Monitor size={32} />
