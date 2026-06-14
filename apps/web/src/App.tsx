@@ -278,7 +278,7 @@ function HomeView({
             <strong>{data.counts.resources.toLocaleString()}</strong>
           </div>
           <div>
-            <span>Tracked words</span>
+            <span>Dictionary words</span>
             <strong>{data.counts.words.toLocaleString()}</strong>
           </div>
           <div>
@@ -965,6 +965,7 @@ function QuizView() {
   const [answered, setAnswered] = useState<QuizAnswerPayload[]>([]);
   const [feedback, setFeedback] = useState<QuizAnswerPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -1032,6 +1033,10 @@ function QuizView() {
   }
 
   function checkAnswer() {
+    if (submitting) {
+      return;
+    }
+
     const currentAnswer = buildAnswer();
     if (currentAnswer) {
       setFeedback(currentAnswer);
@@ -1039,6 +1044,10 @@ function QuizView() {
   }
 
   async function advance() {
+    if (submitting) {
+      return;
+    }
+
     const currentAnswer = feedback ?? buildAnswer();
     if (!currentAnswer || !selectedResourceId) {
       return;
@@ -1053,10 +1062,17 @@ function QuizView() {
       return;
     }
 
-    await api.saveQuizSession(selectedResourceId, nextAnswers);
-    const correct = nextAnswers.filter((item) => item.correct).length;
-    await loadQuiz(selectedResourceId);
-    setMessage(`Quiz saved: ${correct}/${nextAnswers.length} correct.`);
+    setSubmitting(true);
+    try {
+      await api.saveQuizSession(selectedResourceId, nextAnswers);
+      const correct = nextAnswers.filter((item) => item.correct).length;
+      await loadQuiz(selectedResourceId);
+      setMessage(`Quiz saved: ${correct}/${nextAnswers.length} correct.`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not save quiz session");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const current = deck[index];
@@ -1155,13 +1171,23 @@ function QuizView() {
               </div>
             )}
             <div className="button-row">
-              <button className="secondary-button" type="button" disabled={Boolean(feedback)} onClick={checkAnswer}>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={Boolean(feedback) || submitting}
+                onClick={checkAnswer}
+              >
                 <Target size={17} />
                 Check
               </button>
-              <button className="primary-button" type="button" onClick={() => void advance()}>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={submitting}
+                onClick={() => void advance()}
+              >
                 <Play size={17} />
-                {index < deck.length - 1 ? "Next" : "Finish"}
+                {submitting ? "Saving..." : index < deck.length - 1 ? "Next" : "Finish"}
               </button>
             </div>
           </div>
@@ -1181,7 +1207,7 @@ function isAnswerCorrect(answer: string, expected: string) {
     .split(/[;；,、\/]| or /i)
     .map(normalizeQuizText)
     .filter(Boolean)
-    .some((candidate) => candidate === normalizedAnswer || candidate.includes(normalizedAnswer));
+    .some((candidate) => candidate === normalizedAnswer);
 }
 
 function normalizeQuizText(value: string) {
