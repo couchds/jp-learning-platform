@@ -15,4 +15,6 @@ python app.py
 
 Default URL: `http://127.0.0.1:5100`.
 
+After the virtual environment and OCR engine are installed, the browser Capture page can start this service through the local API. The launcher prefers `services/ocr/.venv/bin/python` and surfaces startup errors if dependencies are missing.
+
 Set `OCR_BACKEND=easyocr` to use EasyOCR instead. This service intentionally excludes hosted OCR backends during the local-first phase.

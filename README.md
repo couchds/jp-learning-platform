@@ -9,11 +9,11 @@ This repository is intentionally starting fresh. The previous app's public-facin
 - **Local-first:** SQLite and local file storage are the default persistence layer.
 - **No bundled secrets:** `.env` files, API keys, service account material, trained models, uploads, and local databases are ignored.
 - **Composable services:** the web app, API, OCR service, kanji handwriting recognition service, and speech model service are separate local processes.
-- **Semver:** the current local product version is `0.3.0`; user-facing or API-contract changes should update the root package version and changelog.
+- **Semver:** the current local product version is `0.4.0`; user-facing or API-contract changes should update the root package version and changelog.
 
 ## Product Features
 
-- Browser control center with a landing page, local service status, and desktop overlay launch controls.
+- Browser control center with a landing page, local service status, OCR service startup, and desktop overlay launch controls.
 - Runtime Doctor checks for overlay dependencies, local writable paths, macOS permission hints, and companion service health.
 - Any-window OCR workflow through the desktop companion for games, browser tabs, emulators, videos, and documents.
 - Resource library for manga, games, books, anime, websites, podcasts, and other study sources.
@@ -65,6 +65,8 @@ npm run dev
 Open the browser app at `http://127.0.0.1:5173`.
 
 Python services will each have their own virtual environment and `requirements.txt`. Heavy OCR and speech model dependencies are kept out of Node installation so the app can boot even when those optional services are not running.
+
+The browser Capture page can start the OCR service after the OCR virtual environment and OCR engine package are installed. It intentionally does not run `pip install` automatically.
 
 Run optional companion services in separate terminals:
 
@@ -142,6 +144,7 @@ Downloaded dictionary files should stay outside git. Import scripts will documen
 - `GET /api/runtime/doctor`
 - `GET|PUT /api/knowledge`
 - `GET /api/ocr/health`
+- `POST /api/ocr/service/launch`
 - `POST /api/ocr/image`
 - `POST /api/ocr/resources/:resourceId/images`
 - `GET /api/recognize/health`

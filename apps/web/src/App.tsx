@@ -191,9 +191,13 @@ export function App() {
           <DashboardView state={dashboard} onRefresh={() => void refreshDashboard()} />
         )}
         {view === "capture" && (
-          <CaptureView onChange={() => void refreshDashboard()} onNavigate={setView} />
+          <CaptureView
+            onChange={() => void refreshDashboard()}
+            onNavigate={setView}
+            onServicesChange={() => void refreshServices()}
+          />
         )}
-        {view === "runtime" && <RuntimeView />}
+        {view === "runtime" && <RuntimeView onServicesChange={() => void refreshServices()} />}
         {view === "resources" && <ResourcesView onChange={() => void refreshDashboard()} />}
         {view === "tracker" && <TrackerView onChange={() => void refreshDashboard()} />}
         {view === "quiz" && <QuizView />}
@@ -413,12 +417,15 @@ function DashboardView({
   );
 }
 
-function RuntimeView() {
+function RuntimeView({ onServicesChange }: { onServicesChange: () => void }) {
   const [doctor, setDoctor] = useState<Loadable<RuntimeDoctor>>({
     data: null,
     loading: true,
     error: null
   });
+  const [ocrLaunching, setOcrLaunching] = useState(false);
+  const [ocrLaunchMessage, setOcrLaunchMessage] = useState<string | null>(null);
+  const [ocrLaunchError, setOcrLaunchError] = useState<string | null>(null);
 
   useEffect(() => {
     void loadDoctor();
@@ -434,6 +441,28 @@ function RuntimeView() {
         loading: false,
         error: requestError instanceof Error ? requestError.message : "Could not run runtime doctor"
       });
+    }
+  }
+
+  async function launchOcrService() {
+    setOcrLaunching(true);
+    setOcrLaunchMessage(null);
+    setOcrLaunchError(null);
+    try {
+      const response = await api.launchOcrService();
+      setOcrLaunchMessage(
+        response.alreadyRunning
+          ? "OCR service is already running."
+          : response.launched
+            ? `OCR service launched${response.pid ? ` as process ${response.pid}` : ""}.`
+            : "OCR service launch was already requested."
+      );
+      await loadDoctor();
+      onServicesChange();
+    } catch (requestError) {
+      setOcrLaunchError(requestError instanceof Error ? requestError.message : "Could not start OCR service");
+    } finally {
+      setOcrLaunching(false);
     }
   }
 
@@ -480,10 +509,24 @@ function RuntimeView() {
               <h3>{check.label}</h3>
               <p>{check.detail}</p>
               {check.action && <small>{check.action}</small>}
+              {check.id === "ocr-service" && (
+                <button
+                  className="secondary-button compact-button"
+                  type="button"
+                  disabled={ocrLaunching}
+                  onClick={() => void launchOcrService()}
+                >
+                  <Play size={16} />
+                  {ocrLaunching ? "Starting..." : "Start OCR service"}
+                </button>
+              )}
             </article>
           );
         })}
       </div>
+
+      {ocrLaunchMessage && <p className="success-text">{ocrLaunchMessage}</p>}
+      {ocrLaunchError && <p className="error-text">{ocrLaunchError}</p>}
 
       {!doctor.loading && !doctor.error && doctor.data?.checks.length === 0 && (
         <EmptyState title="No checks returned" detail="The local API responded, but no runtime checks were reported." />
@@ -492,10 +535,23 @@ function RuntimeView() {
   );
 }
 
-function CaptureView({ onChange, onNavigate }: { onChange: () => void; onNavigate: (view: View) => void }) {
+function CaptureView({
+  onChange,
+  onNavigate,
+  onServicesChange
+}: {
+  onChange: () => void;
+  onNavigate: (view: View) => void;
+  onServicesChange: () => void;
+}) {
   const [resources, setResources] = useState<Resource[]>([]);
   const [selectedResourceId, setSelectedResourceId] = useState<number | null>(null);
   const [overlay, setOverlay] = useState<Loadable<DesktopOverlayStatus>>({
+    data: null,
+    loading: true,
+    error: null
+  });
+  const [ocrService, setOcrService] = useState<Loadable<ServiceHealth>>({
     data: null,
     loading: true,
     error: null
@@ -504,12 +560,14 @@ function CaptureView({ onChange, onNavigate }: { onChange: () => void; onNavigat
   const [trackedTerms, setTrackedTerms] = useState<ResourceTerm[]>([]);
   const [busy, setBusy] = useState(false);
   const [launching, setLaunching] = useState(false);
+  const [startingOcr, setStartingOcr] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void loadResources();
     void loadOverlayStatus();
+    void loadOcrServiceStatus();
   }, []);
 
   async function loadResources() {
@@ -534,6 +592,41 @@ function CaptureView({ onChange, onNavigate }: { onChange: () => void; onNavigat
         loading: false,
         error: requestError instanceof Error ? requestError.message : "Could not inspect overlay"
       });
+    }
+  }
+
+  async function loadOcrServiceStatus() {
+    setOcrService((current) => ({ ...current, loading: true, error: null }));
+    try {
+      setOcrService({ data: await api.ocrHealth(), loading: false, error: null });
+    } catch (requestError) {
+      setOcrService({
+        data: null,
+        loading: false,
+        error: requestError instanceof Error ? requestError.message : "Could not inspect OCR service"
+      });
+    }
+  }
+
+  async function launchOcrService() {
+    setStartingOcr(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const response = await api.launchOcrService();
+      setMessage(
+        response.alreadyRunning
+          ? "OCR service is already running."
+          : response.launched
+            ? `OCR service launched${response.pid ? ` as process ${response.pid}` : ""}.`
+            : "OCR service launch was already requested."
+      );
+      await loadOcrServiceStatus();
+      onServicesChange();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not start OCR service");
+    } finally {
+      setStartingOcr(false);
     }
   }
 
@@ -589,6 +682,7 @@ function CaptureView({ onChange, onNavigate }: { onChange: () => void; onNavigat
 
   const selectedResource = resources.find((resource) => resource.id === selectedResourceId);
   const suggestedTerms = result?.terms ?? [];
+  const ocrReady = Boolean(ocrService.data && ocrService.data.available !== false && !ocrService.error);
 
   return (
     <section className="capture-layout">
@@ -642,6 +736,39 @@ function CaptureView({ onChange, onNavigate }: { onChange: () => void; onNavigat
           On macOS, Screen Recording and Accessibility permissions may be required for the terminal or
           Python executable that starts the overlay.
         </p>
+      </div>
+
+      <div className="panel ocr-service-panel">
+        <div className="panel-heading">
+          <h2>OCR Engine</h2>
+          <span>{ocrService.loading ? "checking" : ocrReady ? "ready" : "offline"}</span>
+        </div>
+        <div className={ocrReady ? "service-launch-card ready" : "service-launch-card offline"}>
+          {ocrReady ? <CheckCircle2 size={28} /> : <Activity size={28} />}
+          <div>
+            <strong>{ocrReady ? "Japanese OCR is ready." : "Start OCR before capturing text."}</strong>
+            <p>
+              The overlay and screenshot uploader both send images to the local OCR service at
+              {" "}{ocrService.data?.url ?? "http://127.0.0.1:5100"}.
+            </p>
+          </div>
+        </div>
+        {ocrService.error && <p className="error-text">{ocrService.error}</p>}
+        <div className="button-row">
+          <button
+            className="primary-button"
+            type="button"
+            disabled={startingOcr || ocrReady}
+            onClick={() => void launchOcrService()}
+          >
+            <Play size={17} />
+            {startingOcr ? "Starting..." : "Start OCR service"}
+          </button>
+          <button className="secondary-button" type="button" onClick={() => void loadOcrServiceStatus()}>
+            <Activity size={17} />
+            Refresh OCR
+          </button>
+        </div>
       </div>
 
       <div className="panel upload-panel">

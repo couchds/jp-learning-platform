@@ -4,6 +4,12 @@ All notable changes to this project will be documented here.
 
 This project follows semantic versioning.
 
+## 0.4.0 - 2026-06-14
+
+- Add a local OCR service launcher endpoint for starting `services/ocr/app.py` from the API.
+- Add Capture and Runtime controls for starting and refreshing the OCR engine from the browser.
+- Improve OCR service diagnostics so missing engine dependencies are surfaced in Runtime Doctor.
+
 ## 0.3.0 - 2026-06-14
 
 - Add Runtime Doctor API checks for overlay dependencies, writable local paths, macOS permission hints, and companion service health.
