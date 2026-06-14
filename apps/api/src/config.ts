@@ -5,6 +5,7 @@ const apiDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(apiDir, "../../..");
 const overlayRoot = path.join(repoRoot, "services/desktop-overlay");
 const defaultOverlayScriptPath = path.join(overlayRoot, "overlay.py");
+const defaultOverlayPythonPath = path.join(overlayRoot, ".venv/bin/python");
 
 function boolFromEnv(value: string | undefined, fallback: boolean): boolean {
   if (value == null || value.trim() === "") {
@@ -55,7 +56,8 @@ export const config = {
   ocrServiceUrl: process.env.OCR_SERVICE_URL ?? "http://127.0.0.1:5100",
   recognitionServiceUrl: process.env.RECOGNITION_SERVICE_URL ?? "http://127.0.0.1:5000",
   speechServiceUrl: process.env.SPEECH_SERVICE_URL ?? "http://127.0.0.1:5200",
-  overlayScriptPath: overlayScriptPathFromEnv(process.env.OVERLAY_SCRIPT_PATH)
+  overlayScriptPath: overlayScriptPathFromEnv(process.env.OVERLAY_SCRIPT_PATH),
+  overlayPythonPath: process.env.OVERLAY_PYTHON_PATH ?? defaultOverlayPythonPath
 };
 
 export type AppConfig = typeof config;

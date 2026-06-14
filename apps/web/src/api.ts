@@ -100,7 +100,7 @@ export const api = {
     }),
   desktopOverlayStatus: () => request<DesktopOverlayStatus>("/api/desktop/overlay/status"),
   launchDesktopOverlay: () =>
-    request<{ launched: boolean; alreadyRequested?: boolean; pid?: number; overlay: string }>(
+    request<{ launched: boolean; alreadyRequested?: boolean; pid?: number; overlay: string; python?: string }>(
       "/api/desktop/overlay/launch",
       {
         method: "POST",
