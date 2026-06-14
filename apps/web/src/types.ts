@@ -112,6 +112,18 @@ export type ServiceHealth = {
   error?: string;
 };
 
+export type LocalServiceLaunch = {
+  launched: boolean;
+  alreadyRunning?: boolean;
+  alreadyRequested?: boolean;
+  pid?: number;
+  service: string;
+  url: string;
+  python?: "venv" | "system";
+  available?: boolean;
+  health?: unknown;
+};
+
 export type RuntimeDoctorStatus = "ok" | "warn" | "error";
 
 export type RuntimeDoctorCheck = {

@@ -2,6 +2,7 @@ import type {
   Dashboard,
   DesktopOverlayStatus,
   Kanji,
+  LocalServiceLaunch,
   OcrResult,
   Page,
   QuizAnswerPayload,
@@ -59,6 +60,12 @@ export const api = {
       })
     );
   },
+  ocrHealth: () => request<ServiceHealth>("/api/ocr/health"),
+  launchOcrService: () =>
+    request<LocalServiceLaunch>("/api/ocr/service/launch", {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
   runtimeDoctor: () => request<RuntimeDoctor>("/api/runtime/doctor"),
   resources: (query = "") => request<Page<Resource>>(`/api/resources${query}`),
   createResource: (resource: {

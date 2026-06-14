@@ -316,6 +316,11 @@ h3 {
   background: #f7fbff;
 }
 
+.compact-button {
+  min-height: 36px;
+  justify-self: start;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;
@@ -888,11 +893,13 @@ canvas {
 }
 
 .overlay-panel,
+.ocr-service-panel,
 .quiz-panel {
   min-height: 315px;
 }
 
-.overlay-status {
+.overlay-status,
+.service-launch-card {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 14px;
@@ -908,12 +915,26 @@ canvas {
   color: #315f7a;
 }
 
+.service-launch-card.ready svg {
+  color: #257057;
+}
+
+.service-launch-card.offline svg {
+  color: #a6462f;
+}
+
+.service-launch-card {
+  margin-bottom: 14px;
+}
+
+.service-launch-card p,
 .overlay-status p,
 .helper-text {
   color: #645c50;
   line-height: 1.5;
 }
 
+.service-launch-card p,
 .overlay-status p {
   margin: 6px 0 0;
 }

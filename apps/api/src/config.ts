@@ -4,8 +4,11 @@ import { fileURLToPath } from "node:url";
 const apiDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(apiDir, "../../..");
 const overlayRoot = path.join(repoRoot, "services/desktop-overlay");
+const ocrRoot = path.join(repoRoot, "services/ocr");
 const defaultOverlayScriptPath = path.join(overlayRoot, "overlay.py");
 const defaultOverlayPythonPath = path.join(overlayRoot, ".venv/bin/python");
+const defaultOcrScriptPath = path.join(ocrRoot, "app.py");
+const defaultOcrPythonPath = path.join(ocrRoot, ".venv/bin/python");
 
 function boolFromEnv(value: string | undefined, fallback: boolean): boolean {
   if (value == null || value.trim() === "") {
@@ -26,12 +29,12 @@ function listFromEnv(value: string | undefined, fallback: string[]): string[] {
     .filter(Boolean);
 }
 
-function overlayScriptPathFromEnv(value: string | undefined): string {
-  const resolved = path.resolve(value ?? defaultOverlayScriptPath);
-  const relative = path.relative(overlayRoot, resolved);
+function serviceScriptPathFromEnv(value: string | undefined, fallback: string, serviceRoot: string, envName: string): string {
+  const resolved = path.resolve(value ?? fallback);
+  const relative = path.relative(serviceRoot, resolved);
 
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error("OVERLAY_SCRIPT_PATH must point inside services/desktop-overlay");
+    throw new Error(`${envName} must point inside ${path.relative(repoRoot, serviceRoot)}`);
   }
 
   return resolved;
@@ -56,7 +59,15 @@ export const config = {
   ocrServiceUrl: process.env.OCR_SERVICE_URL ?? "http://127.0.0.1:5100",
   recognitionServiceUrl: process.env.RECOGNITION_SERVICE_URL ?? "http://127.0.0.1:5000",
   speechServiceUrl: process.env.SPEECH_SERVICE_URL ?? "http://127.0.0.1:5200",
-  overlayScriptPath: overlayScriptPathFromEnv(process.env.OVERLAY_SCRIPT_PATH),
+  ocrServiceRoot: ocrRoot,
+  ocrScriptPath: serviceScriptPathFromEnv(process.env.OCR_SCRIPT_PATH, defaultOcrScriptPath, ocrRoot, "OCR_SCRIPT_PATH"),
+  ocrPythonPath: process.env.OCR_PYTHON_PATH ?? defaultOcrPythonPath,
+  overlayScriptPath: serviceScriptPathFromEnv(
+    process.env.OVERLAY_SCRIPT_PATH,
+    defaultOverlayScriptPath,
+    overlayRoot,
+    "OVERLAY_SCRIPT_PATH"
+  ),
   overlayPythonPath: process.env.OVERLAY_PYTHON_PATH ?? defaultOverlayPythonPath,
   webAppUrl: process.env.WEB_APP_URL ?? "http://127.0.0.1:5173"
 };

@@ -123,8 +123,26 @@ async function serviceCheck(service: string, baseUrl: string): Promise<DoctorChe
 
   try {
     const response = await fetch(healthUrl, { signal: controller.signal });
+    const payload = await safeJson(response);
+    const expectedService = isExpectedServicePayload(service, payload);
+    if (response.ok && !expectedService) {
+      return {
+        id: `${service}-service`,
+        label: serviceLabel(service),
+        status: "warn",
+        detail: `Unexpected service response from ${healthUrl}`,
+        action: serviceStartHint(service)
+      };
+    }
+
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      return {
+        id: `${service}-service`,
+        label: serviceLabel(service),
+        status: "warn",
+        detail: describeServiceHealthFailure(payload, response.status, healthUrl),
+        action: serviceStartHint(service)
+      };
     }
 
     return {
@@ -190,6 +208,47 @@ function describeServiceFailure(error: unknown, healthUrl: string) {
     return `${error.message} from ${healthUrl}`;
   }
   return `Not reachable at ${healthUrl}`;
+}
+
+async function safeJson(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+}
+
+function describeServiceHealthFailure(payload: unknown, status: number, healthUrl: string) {
+  if (payload && typeof payload === "object" && "reason" in payload) {
+    const reason = (payload as { reason?: unknown }).reason;
+    if (typeof reason === "string") {
+      return reason;
+    }
+  }
+  if (payload && typeof payload === "object" && "error" in payload) {
+    const error = (payload as { error?: unknown }).error;
+    if (typeof error === "string") {
+      return error;
+    }
+  }
+  return `HTTP ${status} from ${healthUrl}`;
+}
+
+function isExpectedServicePayload(service: string, payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const health = payload as { service?: unknown; local_only?: unknown };
+  if (service === "ocr") {
+    return health.service === "ocr" && health.local_only === true;
+  }
+  return health.service === service;
 }
 
 function summarize(checks: DoctorCheck[]) {
