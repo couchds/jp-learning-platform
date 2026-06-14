@@ -3,7 +3,5 @@ flask-cors>=4.0.0
 Pillow>=10.0.0
 fugashi>=1.3.0
 unidic-lite>=1.0.8
-
-# Install one or both OCR engines locally:
-# manga-ocr>=0.1.14
-# easyocr>=1.7.0
+manga-ocr>=0.1.14
+easyocr>=1.7.0

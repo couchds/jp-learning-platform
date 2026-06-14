@@ -682,7 +682,28 @@ function CaptureView({
 
   const selectedResource = resources.find((resource) => resource.id === selectedResourceId);
   const suggestedTerms = result?.terms ?? [];
+  const ocrHealth =
+    ocrService.data?.health && typeof ocrService.data.health === "object"
+      ? (ocrService.data.health as {
+          status?: string;
+          active_backend?: string;
+          reason?: string | null;
+        })
+      : null;
+  const ocrWarming = ocrHealth?.status === "warming";
   const ocrReady = Boolean(ocrService.data && ocrService.data.available !== false && !ocrService.error);
+  const ocrStatusLabel = ocrService.loading ? "checking" : ocrReady ? "ready" : ocrWarming ? "warming" : "offline";
+  const ocrCardState = ocrReady ? "ready" : ocrWarming ? "warming" : "offline";
+  const ocrTitle = ocrReady
+    ? "Japanese OCR is ready."
+    : ocrWarming
+      ? "OCR model is warming up."
+      : "Start OCR before capturing text.";
+  const ocrDetail = ocrWarming
+    ? `Loading ${ocrHealth?.active_backend ?? "OCR"} locally. Refresh in a moment before capturing text.`
+    : `The overlay and screenshot uploader both send images to the local OCR service at ${
+        ocrService.data?.url ?? "http://127.0.0.1:5100"
+      }.`;
 
   return (
     <section className="capture-layout">
@@ -741,24 +762,22 @@ function CaptureView({
       <div className="panel ocr-service-panel">
         <div className="panel-heading">
           <h2>OCR Engine</h2>
-          <span>{ocrService.loading ? "checking" : ocrReady ? "ready" : "offline"}</span>
+          <span>{ocrStatusLabel}</span>
         </div>
-        <div className={ocrReady ? "service-launch-card ready" : "service-launch-card offline"}>
+        <div className={`service-launch-card ${ocrCardState}`}>
           {ocrReady ? <CheckCircle2 size={28} /> : <Activity size={28} />}
           <div>
-            <strong>{ocrReady ? "Japanese OCR is ready." : "Start OCR before capturing text."}</strong>
-            <p>
-              The overlay and screenshot uploader both send images to the local OCR service at
-              {" "}{ocrService.data?.url ?? "http://127.0.0.1:5100"}.
-            </p>
+            <strong>{ocrTitle}</strong>
+            <p>{ocrDetail}</p>
           </div>
         </div>
+        {ocrWarming && ocrHealth?.reason && <p className="helper-text">{ocrHealth.reason}</p>}
         {ocrService.error && <p className="error-text">{ocrService.error}</p>}
         <div className="button-row">
           <button
             className="primary-button"
             type="button"
-            disabled={startingOcr || ocrReady}
+            disabled={startingOcr || ocrReady || ocrWarming}
             onClick={() => void launchOcrService()}
           >
             <Play size={17} />

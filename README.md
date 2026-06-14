@@ -9,7 +9,7 @@ This repository is intentionally starting fresh. The previous app's public-facin
 - **Local-first:** SQLite and local file storage are the default persistence layer.
 - **No bundled secrets:** `.env` files, API keys, service account material, trained models, uploads, and local databases are ignored.
 - **Composable services:** the web app, API, OCR service, kanji handwriting recognition service, and speech model service are separate local processes.
-- **Semver:** the current local product version is `0.4.0`; user-facing or API-contract changes should update the root package version and changelog.
+- **Semver:** the current local product version is `0.5.0`; user-facing or API-contract changes should update the root package version and changelog.
 
 ## Product Features
 
@@ -68,6 +68,8 @@ Python services will each have their own virtual environment and `requirements.t
 
 The browser Capture page can start the OCR service after the OCR virtual environment and OCR engine package are installed. It intentionally does not run `pip install` automatically.
 
+The OCR service defaults to `OCR_BACKEND=auto`. In auto mode it prefers EasyOCR when installed because EasyOCR returns bounding boxes for overlay highlights, then falls back to MangaOCR for text-only recognition.
+
 Run optional companion services in separate terminals:
 
 ```bash
@@ -91,7 +93,6 @@ cd services/ocr
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pip install manga-ocr
 python app.py
 ```
 
@@ -159,7 +160,7 @@ Downloaded dictionary files should stay outside git. Import scripts will documen
 ## Local Companion Services
 
 - Desktop OCR overlay: `services/desktop-overlay`, default hotkey `ctrl+shift+o`.
-- OCR: `services/ocr`, default `http://127.0.0.1:5100`, local `manga-ocr` or `easyocr`.
+- OCR: `services/ocr`, default `http://127.0.0.1:5100`, local `auto`, `manga-ocr`, or `easyocr` backend.
 - KanjiDraw recognition: `services/recognize`, default `http://127.0.0.1:5000`.
 - Speech model: `services/speech-model`, default `http://127.0.0.1:5200`.
 
@@ -171,9 +172,10 @@ The desktop overlay is the intended game/browser workflow:
 2. Open the browser control center.
 3. Launch the overlay from the Capture page or run `python services/desktop-overlay/overlay.py`.
 4. Select a resource in the overlay.
-5. Press `ctrl+shift+o`.
-6. Drag over any visible game, browser tab, emulator, or document text.
-7. Review OCR terms and add selected words/kanji to the resource tracker.
+5. Press `ctrl+shift+o` to scan the screen under your mouse pointer.
+6. Review the full-screen screenshot overlay, highlighted text regions, OCR text, and term candidates.
+7. Add selected words/kanji to the resource tracker.
+8. Use **Capture Region** when a game or dense page needs a tighter crop.
 
 macOS may require Screen Recording and Accessibility permissions for the terminal or Python executable.
 
