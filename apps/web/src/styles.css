@@ -753,7 +753,18 @@ canvas {
 
 .import-panel {
   display: grid;
+  gap: 14px;
+}
+
+.import-form {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.75fr) minmax(240px, 1.35fr) repeat(3, minmax(110px, 0.55fr)) auto;
   gap: 10px;
+  align-items: end;
+}
+
+.import-path-field {
+  grid-column: span 2;
 }
 
 .command-list {
@@ -770,6 +781,38 @@ canvas {
   color: #e8fffc;
   padding: 10px 12px;
   white-space: nowrap;
+}
+
+.import-job-list {
+  display: grid;
+  gap: 8px;
+}
+
+.import-job-row {
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(184, 228, 226, 0.86);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  padding: 10px 12px;
+}
+
+.import-job-row div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.import-job-row strong,
+.import-job-row small {
+  overflow-wrap: anywhere;
+}
+
+.import-job-row small {
+  color: var(--muted-ink);
 }
 
 .database-panel {
@@ -1779,6 +1822,18 @@ canvas {
 
   .database-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .import-form {
+    grid-template-columns: 1fr;
+  }
+
+  .import-path-field {
+    grid-column: auto;
+  }
+
+  .import-job-row {
+    grid-template-columns: 1fr;
   }
 
   .sentence-meta {

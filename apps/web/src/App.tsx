@@ -36,6 +36,7 @@ import type {
   DataSummary,
   Dashboard,
   DesktopOverlayStatus,
+  ImportJob,
   Kanji,
   KanjiGraph,
   KnowledgeItem,
@@ -446,10 +447,39 @@ function DatabaseView() {
     error: null
   });
   const [graph, setGraph] = useState<Loadable<KanjiGraph>>({ data: null, loading: false, error: null });
+  const [importJobs, setImportJobs] = useState<Loadable<ImportJob[]>>({
+    data: [],
+    loading: true,
+    error: null
+  });
+  const [importForm, setImportForm] = useState({
+    jobType: "kanjidic2" as ImportJob["jobType"],
+    inputPath: "",
+    source: "local-tsv",
+    limit: "",
+    maxEdges: "24",
+    maxGroupSize: "240"
+  });
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importSubmitting, setImportSubmitting] = useState(false);
 
   useEffect(() => {
     void loadSummary();
+    void loadImportJobs();
   }, []);
+
+  useEffect(() => {
+    if (!importJobs.data?.some((job) => job.status === "running" || job.status === "queued")) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void loadImportJobs();
+      void loadSummary();
+    }, 2500);
+
+    return () => window.clearInterval(interval);
+  }, [importJobs.data]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -469,6 +499,59 @@ function DatabaseView() {
         loading: false,
         error: requestError instanceof Error ? requestError.message : "Could not load data summary"
       });
+    }
+  }
+
+  async function loadImportJobs() {
+    setImportJobs((current) => ({ ...current, loading: true, error: null }));
+    try {
+      const response = await api.importJobs(8);
+      setImportJobs({ data: response.items, loading: false, error: null });
+    } catch (requestError) {
+      setImportJobs({
+        data: [],
+        loading: false,
+        error: requestError instanceof Error ? requestError.message : "Could not load import jobs"
+      });
+    }
+  }
+
+  async function submitImportJob(event: React.FormEvent) {
+    event.preventDefault();
+    setImportSubmitting(true);
+    setImportMessage(null);
+    setImportJobs((current) => ({ ...current, error: null }));
+
+    try {
+      const jobType = importForm.jobType;
+      const payload: Parameters<typeof api.createImportJob>[0] = {
+        jobType
+      };
+      if (jobType !== "kanji_graph") {
+        payload.inputPath = importForm.inputPath.trim();
+      }
+      if (jobType === "sentence_examples") {
+        payload.source = importForm.source.trim() || "local-tsv";
+      }
+      if ((jobType === "jmdict" || jobType === "kanji_graph") && importForm.limit.trim()) {
+        payload.limit = Number(importForm.limit);
+      }
+      if (jobType === "kanji_graph") {
+        payload.maxEdges = Number(importForm.maxEdges) || 24;
+        payload.maxGroupSize = Number(importForm.maxGroupSize) || 240;
+      }
+
+      const response = await api.createImportJob(payload);
+      setImportMessage(`Started ${labelForImportJob(response.job.jobType)} job #${response.job.id}.`);
+      await loadImportJobs();
+    } catch (requestError) {
+      setImportJobs({
+        data: importJobs.data ?? [],
+        loading: false,
+        error: requestError instanceof Error ? requestError.message : "Could not start import job"
+      });
+    } finally {
+      setImportSubmitting(false);
     }
   }
 
@@ -569,20 +652,18 @@ function DatabaseView() {
         ))}
       </div>
 
-      {summary.data && summary.data.counts.kanji + summary.data.counts.words + summary.data.counts.sentences === 0 && (
-        <section className="panel import-panel">
-          <div className="panel-heading">
-            <h2>Import Setup</h2>
-            <span>local files only</span>
-          </div>
-          <div className="command-list">
-            <code>py -3 scripts/import_kanjidic2.py C:\path\to\kanjidic2.xml</code>
-            <code>py -3 scripts/import_jmdict.py C:\path\to\JMdict_e.xml</code>
-            <code>py -3 scripts/import_sentence_examples.py C:\path\to\sentences.tsv --source tatoeba</code>
-            <code>py -3 scripts/build_kanji_graph.py</code>
-          </div>
-        </section>
-      )}
+      <ImportManager
+        form={importForm}
+        jobs={importJobs}
+        message={importMessage}
+        submitting={importSubmitting}
+        onFormChange={setImportForm}
+        onRefresh={() => {
+          void loadImportJobs();
+          void loadSummary();
+        }}
+        onSubmit={(event) => void submitImportJob(event)}
+      />
 
       <section className="panel database-panel">
         <div className="database-toolbar">
@@ -620,6 +701,168 @@ function DatabaseView() {
       </section>
     </section>
   );
+}
+
+function ImportManager({
+  form,
+  jobs,
+  message,
+  submitting,
+  onFormChange,
+  onRefresh,
+  onSubmit
+}: {
+  form: {
+    jobType: ImportJob["jobType"];
+    inputPath: string;
+    source: string;
+    limit: string;
+    maxEdges: string;
+    maxGroupSize: string;
+  };
+  jobs: Loadable<ImportJob[]>;
+  message: string | null;
+  submitting: boolean;
+  onFormChange: React.Dispatch<React.SetStateAction<{
+    jobType: ImportJob["jobType"];
+    inputPath: string;
+    source: string;
+    limit: string;
+    maxEdges: string;
+    maxGroupSize: string;
+  }>>;
+  onRefresh: () => void;
+  onSubmit: (event: React.FormEvent) => void;
+}) {
+  const requiresPath = form.jobType !== "kanji_graph";
+
+  return (
+    <section className="panel import-panel">
+      <div className="panel-heading">
+        <h2>Import Jobs</h2>
+        <button className="secondary-button compact-button" type="button" onClick={onRefresh}>
+          <RotateCcw size={16} />
+          Refresh
+        </button>
+      </div>
+      <form className="import-form" onSubmit={onSubmit}>
+        <label>
+          Job type
+          <select
+            value={form.jobType}
+            onChange={(event) =>
+              onFormChange((current) => ({ ...current, jobType: event.target.value as ImportJob["jobType"] }))
+            }
+          >
+            <option value="kanjidic2">KANJIDIC2 kanji</option>
+            <option value="jmdict">JMdict words</option>
+            <option value="sentence_examples">Sentence examples</option>
+            <option value="kanji_graph">Build kanji graph</option>
+          </select>
+        </label>
+        {requiresPath && (
+          <label className="import-path-field">
+            Local file path
+            <input
+              value={form.inputPath}
+              onChange={(event) => onFormChange((current) => ({ ...current, inputPath: event.target.value }))}
+              placeholder="C:\path\to\dataset.xml"
+            />
+          </label>
+        )}
+        {form.jobType === "sentence_examples" && (
+          <label>
+            Source label
+            <input
+              value={form.source}
+              onChange={(event) => onFormChange((current) => ({ ...current, source: event.target.value }))}
+              placeholder="tatoeba"
+            />
+          </label>
+        )}
+        {(form.jobType === "jmdict" || form.jobType === "kanji_graph") && (
+          <label>
+            Limit
+            <input
+              value={form.limit}
+              onChange={(event) => onFormChange((current) => ({ ...current, limit: event.target.value }))}
+              inputMode="numeric"
+              placeholder={form.jobType === "jmdict" ? "optional" : "3000"}
+            />
+          </label>
+        )}
+        {form.jobType === "kanji_graph" && (
+          <>
+            <label>
+              Edges
+              <input
+                value={form.maxEdges}
+                onChange={(event) => onFormChange((current) => ({ ...current, maxEdges: event.target.value }))}
+                inputMode="numeric"
+              />
+            </label>
+            <label>
+              Group cap
+              <input
+                value={form.maxGroupSize}
+                onChange={(event) => onFormChange((current) => ({ ...current, maxGroupSize: event.target.value }))}
+                inputMode="numeric"
+              />
+            </label>
+          </>
+        )}
+        <button className="primary-button" type="submit" disabled={submitting || (requiresPath && !form.inputPath.trim())}>
+          <Play size={17} />
+          {submitting ? "Starting..." : "Start job"}
+        </button>
+      </form>
+      {message && <p className="success-text">{message}</p>}
+      {jobs.error && <p className="error-text">{jobs.error}</p>}
+      <ImportJobList jobs={jobs} />
+      <div className="command-list">
+        <code>py -3 scripts/import_kanjidic2.py C:\path\to\kanjidic2.xml</code>
+        <code>py -3 scripts/import_jmdict.py C:\path\to\JMdict_e.xml</code>
+        <code>py -3 scripts/import_sentence_examples.py C:\path\to\sentences.tsv --source tatoeba</code>
+        <code>py -3 scripts/build_kanji_graph.py</code>
+      </div>
+    </section>
+  );
+}
+
+function ImportJobList({ jobs }: { jobs: Loadable<ImportJob[]> }) {
+  if (jobs.loading && (!jobs.data || jobs.data.length === 0)) {
+    return <EmptyState title="Loading jobs" detail="Reading recent local import jobs." />;
+  }
+
+  if (!jobs.data || jobs.data.length === 0) {
+    return <EmptyState title="No import jobs yet" detail="Start an import or run one of the commands below." />;
+  }
+
+  return (
+    <div className="import-job-list">
+      {jobs.data.map((job) => (
+        <article className="import-job-row" key={job.id}>
+          <div>
+            <strong>{labelForImportJob(job.jobType)}</strong>
+            <small>{job.inputPath || "derived from current database"}</small>
+          </div>
+          <span className={`status-pill ${job.status === "failed" ? "error" : job.status === "completed" ? "ok" : "warn"}`}>
+            {job.status}
+          </span>
+          <small>{job.exitCode == null ? "exit pending" : `exit ${job.exitCode}`}</small>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function labelForImportJob(jobType: ImportJob["jobType"]) {
+  return {
+    kanjidic2: "KANJIDIC2",
+    jmdict: "JMdict",
+    sentence_examples: "Sentences",
+    kanji_graph: "Kanji graph"
+  }[jobType];
 }
 
 function WordDatabaseResults({ state }: { state: Loadable<Word[]> }) {

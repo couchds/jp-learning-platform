@@ -165,6 +165,22 @@ export type KanjiGraph = {
   }>;
 };
 
+export type ImportJob = {
+  id: number;
+  jobType: "kanjidic2" | "jmdict" | "sentence_examples" | "kanji_graph";
+  status: "queued" | "running" | "completed" | "failed";
+  inputPath: string | null;
+  args: Record<string, unknown>;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ServiceHealth = {
   service: string;
   url: string;

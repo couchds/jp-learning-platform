@@ -2,6 +2,7 @@ import type {
   DataSummary,
   Dashboard,
   DesktopOverlayStatus,
+  ImportJob,
   Kanji,
   KanjiGraph,
   KnowledgeItem,
@@ -184,6 +185,19 @@ export const api = {
     request<Page<SentenceExample>>(`/api/sentences?limit=24&search=${encodeURIComponent(search)}`),
   kanjiGraph: (literal: string, limit = 24) =>
     request<KanjiGraph>(`/api/graph/kanji?literal=${encodeURIComponent(literal)}&limit=${limit}`),
+  importJobs: (limit = 10) => request<{ items: ImportJob[] }>(`/api/imports/jobs?limit=${limit}`),
+  createImportJob: (job: {
+    jobType: ImportJob["jobType"];
+    inputPath?: string;
+    source?: string;
+    limit?: number;
+    maxEdges?: number;
+    maxGroupSize?: number;
+  }) =>
+    request<{ job: ImportJob }>("/api/imports/jobs", {
+      method: "POST",
+      body: JSON.stringify(job)
+    }),
   ocrImage: (file: File) => {
     const form = new FormData();
     form.append("image", file);
