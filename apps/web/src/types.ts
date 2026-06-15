@@ -167,10 +167,10 @@ export type KanjiGraph = {
 
 export type ImportJob = {
   id: number;
-  jobType: "kanjidic2" | "jmdict" | "sentence_examples" | "kanji_graph";
+  jobType: "starter_data" | "kanjidic2" | "jmdict" | "sentence_examples" | "kanji_graph";
   status: "queued" | "running" | "completed" | "failed";
   inputPath: string | null;
-  args: Record<string, unknown>;
+  args: unknown;
   stdout: string;
   stderr: string;
   exitCode: number | null;

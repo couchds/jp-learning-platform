@@ -7,6 +7,7 @@
 - Prefer explicit importer scripts over automatic runtime downloads. This keeps startup fast, avoids surprise network use, and lets users choose dataset versions.
 - Treat importers as idempotent upserts where possible so the user can rerun them after downloading newer data.
 - Launch imports through persisted local jobs when initiated from the web app. Long-running imports should report stdout, stderr, status, and exit code through SQLite instead of blocking the HTTP request.
+- Provide a tiny starter dataset as a demo/onboarding path, separate from full public datasets. Starter data should be clearly labeled and safe to overwrite by rerunning the seed.
 
 ## Dictionary Explorer Direction
 

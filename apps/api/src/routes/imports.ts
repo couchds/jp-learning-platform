@@ -4,7 +4,7 @@ import { asyncHandler, HttpError } from "../lib/http.js";
 import { createImportJob, getImportJob, listImportJobs } from "../services/importJobs.js";
 
 const importJobSchema = z.object({
-  jobType: z.enum(["kanjidic2", "jmdict", "sentence_examples", "kanji_graph"]),
+  jobType: z.enum(["starter_data", "kanjidic2", "jmdict", "sentence_examples", "kanji_graph"]),
   inputPath: z.string().trim().min(1).max(2000).optional(),
   source: z.string().trim().min(1).max(120).optional(),
   limit: z.number().int().min(1).max(1000000).optional(),
@@ -38,7 +38,7 @@ importsRouter.post(
   "/jobs",
   asyncHandler((req, res) => {
     const body = importJobSchema.parse(req.body);
-    if (body.jobType !== "kanji_graph" && !body.inputPath) {
+    if (body.jobType !== "kanji_graph" && body.jobType !== "starter_data" && !body.inputPath) {
       throw new HttpError(400, "inputPath is required for dataset import jobs");
     }
 

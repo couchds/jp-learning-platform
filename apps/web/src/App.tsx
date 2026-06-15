@@ -453,7 +453,7 @@ function DatabaseView() {
     error: null
   });
   const [importForm, setImportForm] = useState({
-    jobType: "kanjidic2" as ImportJob["jobType"],
+    jobType: "starter_data" as ImportJob["jobType"],
     inputPath: "",
     source: "local-tsv",
     limit: "",
@@ -527,7 +527,7 @@ function DatabaseView() {
       const payload: Parameters<typeof api.createImportJob>[0] = {
         jobType
       };
-      if (jobType !== "kanji_graph") {
+      if (jobType !== "kanji_graph" && jobType !== "starter_data") {
         payload.inputPath = importForm.inputPath.trim();
       }
       if (jobType === "sentence_examples") {
@@ -734,7 +734,7 @@ function ImportManager({
   onRefresh: () => void;
   onSubmit: (event: React.FormEvent) => void;
 }) {
-  const requiresPath = form.jobType !== "kanji_graph";
+  const requiresPath = form.jobType !== "kanji_graph" && form.jobType !== "starter_data";
 
   return (
     <section className="panel import-panel">
@@ -754,6 +754,7 @@ function ImportManager({
               onFormChange((current) => ({ ...current, jobType: event.target.value as ImportJob["jobType"] }))
             }
           >
+            <option value="starter_data">Starter sample data</option>
             <option value="kanjidic2">KANJIDIC2 kanji</option>
             <option value="jmdict">JMdict words</option>
             <option value="sentence_examples">Sentence examples</option>
@@ -823,6 +824,7 @@ function ImportManager({
         <code>py -3 scripts/import_kanjidic2.py C:\path\to\kanjidic2.xml</code>
         <code>py -3 scripts/import_jmdict.py C:\path\to\JMdict_e.xml</code>
         <code>py -3 scripts/import_sentence_examples.py C:\path\to\sentences.tsv --source tatoeba</code>
+        <code>py -3 scripts/seed_starter_data.py</code>
         <code>py -3 scripts/build_kanji_graph.py</code>
       </div>
     </section>
@@ -858,6 +860,7 @@ function ImportJobList({ jobs }: { jobs: Loadable<ImportJob[]> }) {
 
 function labelForImportJob(jobType: ImportJob["jobType"]) {
   return {
+    starter_data: "Starter data",
     kanjidic2: "KANJIDIC2",
     jmdict: "JMdict",
     sentence_examples: "Sentences",

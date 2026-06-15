@@ -4,7 +4,7 @@ import type Database from "better-sqlite3";
 import { config } from "../config.js";
 import { getDb, readJson, touchNow, writeJson } from "../db/index.js";
 
-export type ImportJobType = "kanjidic2" | "jmdict" | "sentence_examples" | "kanji_graph";
+export type ImportJobType = "starter_data" | "kanjidic2" | "jmdict" | "sentence_examples" | "kanji_graph";
 
 export type ImportJobOptions = {
   jobType: ImportJobType;
@@ -39,7 +39,7 @@ export function mapImportJob(row: ImportJobRow) {
     jobType: row.job_type,
     status: row.status,
     inputPath: row.input_path,
-    args: readJson<Record<string, unknown>>(row.args_json, {}),
+    args: readJson<unknown>(row.args_json, {}),
     stdout: row.stdout,
     stderr: row.stderr,
     exitCode: row.exit_code,
@@ -156,6 +156,7 @@ function buildJobArgs(options: ImportJobOptions) {
 
 function scriptFor(jobType: ImportJobType) {
   const scripts: Record<ImportJobType, string> = {
+    starter_data: "scripts/seed_starter_data.py",
     kanjidic2: "scripts/import_kanjidic2.py",
     jmdict: "scripts/import_jmdict.py",
     sentence_examples: "scripts/import_sentence_examples.py",

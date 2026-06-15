@@ -163,12 +163,13 @@ Start the API once before importing so SQLite migrations create `data/local/app.
 py -3 scripts/import_kanjidic2.py C:\path\to\kanjidic2.xml
 py -3 scripts/import_jmdict.py C:\path\to\JMdict_e.xml
 py -3 scripts/import_sentence_examples.py C:\path\to\sentences.tsv --source tatoeba
+py -3 scripts/seed_starter_data.py
 py -3 scripts/build_kanji_graph.py
 ```
 
-The import and graph scripts default to `data/local/app.sqlite`. Pass `--db C:\path\to\app.sqlite` to target a different local database. For a quick JMdict smoke test, add `--limit 1000`.
+The import and graph scripts default to `data/local/app.sqlite`. Pass `--db C:\path\to\app.sqlite` to target a different local database where supported. For a quick JMdict smoke test, add `--limit 1000`.
 
-Sentence TSV imports accept headers such as `source_id`, `japanese`, `english`, and `reading`. Use `--no-header` for files ordered as `source_id`, `japanese`, `english`, `reading`. The kanji graph builder derives similarity edges from imported KANJIDIC2 metadata.
+Sentence TSV imports accept headers such as `source_id`, `japanese`, `english`, and `reading`. Use `--no-header` for files ordered as `source_id`, `japanese`, `english`, `reading`. The starter seed gives the local explorer a tiny demo dataset immediately. The kanji graph builder derives similarity edges from imported KANJIDIC2 metadata.
 
 ## Security And Privacy
 
