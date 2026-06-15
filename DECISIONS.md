@@ -6,6 +6,7 @@
 - Store JMdict, KANJIDIC2, sentence examples, and derived kanji graph edges in SQLite so the web app remains offline-first.
 - Prefer explicit importer scripts over automatic runtime downloads. This keeps startup fast, avoids surprise network use, and lets users choose dataset versions.
 - Treat importers as idempotent upserts where possible so the user can rerun them after downloading newer data.
+- Launch imports through persisted local jobs when initiated from the web app. Long-running imports should report stdout, stderr, status, and exit code through SQLite instead of blocking the HTTP request.
 
 ## Dictionary Explorer Direction
 

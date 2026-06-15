@@ -311,6 +311,30 @@ const migrations: Array<{ id: number; name: string; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_kanji_relations_target ON kanji_relations(target_literal);
       CREATE INDEX IF NOT EXISTS idx_kanji_relations_type ON kanji_relations(relation_type);
     `
+  },
+  {
+    id: 5,
+    name: "import_jobs",
+    sql: `
+      CREATE TABLE IF NOT EXISTS import_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        input_path TEXT,
+        args_json TEXT NOT NULL DEFAULT '{}',
+        stdout TEXT NOT NULL DEFAULT '',
+        stderr TEXT NOT NULL DEFAULT '',
+        exit_code INTEGER,
+        error TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_import_jobs_status ON import_jobs(status, created_at);
+      CREATE INDEX IF NOT EXISTS idx_import_jobs_type ON import_jobs(job_type, created_at);
+    `
   }
 ];
 

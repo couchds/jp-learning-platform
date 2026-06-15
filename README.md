@@ -185,6 +185,9 @@ Sentence TSV imports accept headers such as `source_id`, `japanese`, `english`, 
 - `GET|PUT /api/local/profile`
 - `GET /api/dashboard`
 - `GET /api/graph/kanji`
+- `GET /api/imports/jobs`
+- `GET /api/imports/jobs/:id`
+- `POST /api/imports/jobs`
 - `GET /api/kanji`
 - `GET /api/kanji/:idOrLiteral`
 - `GET|PUT /api/knowledge`
