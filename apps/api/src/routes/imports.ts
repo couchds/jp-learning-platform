@@ -38,10 +38,6 @@ importsRouter.post(
   "/jobs",
   asyncHandler((req, res) => {
     const body = importJobSchema.parse(req.body);
-    if (body.jobType !== "kanji_graph" && body.jobType !== "starter_data" && !body.inputPath) {
-      throw new HttpError(400, "inputPath is required for dataset import jobs");
-    }
-
     const job = createImportJob({
       jobType: body.jobType,
       inputPath: body.inputPath,

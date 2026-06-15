@@ -5,7 +5,6 @@ import {
   Boxes,
   Brain,
   CheckCircle2,
-  Circle,
   ClipboardList,
   Crosshair,
   Database,
@@ -22,8 +21,6 @@ import {
   RotateCcw,
   Save,
   Search,
-  Settings2,
-  Shield,
   Sparkles,
   Target,
   Trophy,
@@ -134,18 +131,18 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
 const navItems = navGroups.flatMap((group) => group.items);
 
 const viewSummaries: Record<View, string> = {
-  home: "Capture, collect, and review from a local study workspace.",
-  dashboard: "A quick read on local resources, captures, and reviews.",
+  home: "Capture, collect, and review from your study workspace.",
+  dashboard: "A quick read on resources, captures, and reviews.",
   database: "Browse imported kanji, words, sentences, and relation data.",
   profile: "Track knowledge growth, XP, and kanji relationships.",
   capture: "Run OCR tools and attach captures to study resources.",
-  runtime: "Check local services, platform readiness, and companion tools.",
+  runtime: "Check service readiness, platform permissions, and companion tools.",
   resources: "Create and organize the media you are studying from.",
   tracker: "Add dictionary-backed words or custom terms to a resource.",
   quiz: "Practice resource vocabulary with quick recall sessions.",
-  lookup: "Search local kanji and word data, then mark what you know.",
+  lookup: "Search kanji and word data, then mark what you know.",
   draw: "Draw kanji and inspect recognition candidates.",
-  speech: "Inspect local pronunciation tooling and training commands."
+  speech: "Inspect pronunciation tooling and training commands."
 };
 
 export function App() {
@@ -155,11 +152,9 @@ export function App() {
     loading: true,
     error: null
   });
-  const [services, setServices] = useState<ServiceHealth[]>([]);
 
   useEffect(() => {
     void refreshDashboard();
-    void refreshServices();
   }, []);
 
   async function refreshDashboard() {
@@ -175,10 +170,6 @@ export function App() {
     }
   }
 
-  async function refreshServices() {
-    setServices(await api.serviceHealth());
-  }
-
   const activeTitle = navItems.find((item) => item.id === view)?.label ?? "Dashboard";
   const activeSummary = viewSummaries[view];
 
@@ -192,7 +183,7 @@ export function App() {
           <div className="brand-mark">日</div>
           <div>
             <strong>Yomunami</strong>
-            <span>local study desk</span>
+            <span>Japanese study desk</span>
           </div>
         </div>
 
@@ -222,41 +213,18 @@ export function App() {
           ))}
         </nav>
 
-        <section className="service-strip" aria-label="Local companion services">
-          <div className="section-kicker">
-            <Activity size={14} />
-            Services
-          </div>
-          {services.map((service) => (
-            <ServiceRow key={service.service} service={service} />
-          ))}
-          <button className="quiet-button" type="button" onClick={() => void refreshServices()}>
-            <Settings2 size={15} />
-            Refresh
-          </button>
-        </section>
       </aside>
 
       <main className="workspace" id="main-content">
         <header className="topbar">
           <div className="topbar-copy">
-            <span className="eyebrow">Local-first Japanese learning</span>
+            <span className="eyebrow">Japanese learning</span>
             <h1>{activeTitle}</h1>
             <p className="topbar-subtitle">{activeSummary}</p>
           </div>
-          <div className="api-pill">
-            <Database size={16} />
-            {api.apiUrl.replace("http://", "")}
-          </div>
         </header>
 
-        {view === "home" && (
-          <HomeView
-            state={dashboard}
-            services={services}
-            onNavigate={setView}
-          />
-        )}
+        {view === "home" && <HomeView onNavigate={setView} />}
         {view === "dashboard" && (
           <DashboardView state={dashboard} onRefresh={() => void refreshDashboard()} />
         )}
@@ -266,10 +234,9 @@ export function App() {
           <CaptureView
             onChange={() => void refreshDashboard()}
             onNavigate={setView}
-            onServicesChange={() => void refreshServices()}
           />
         )}
-        {view === "runtime" && <RuntimeView onServicesChange={() => void refreshServices()} />}
+        {view === "runtime" && <RuntimeView />}
         {view === "resources" && <ResourcesView onChange={() => void refreshDashboard()} />}
         {view === "tracker" && <TrackerView onChange={() => void refreshDashboard()} />}
         {view === "quiz" && <QuizView />}
@@ -281,35 +248,14 @@ export function App() {
   );
 }
 
-function ServiceRow({ service }: { service: ServiceHealth }) {
-  const available = service.available !== false && !service.error;
-  return (
-    <div className="service-row">
-      <Circle size={10} className={available ? "ok-dot" : "bad-dot"} fill="currentColor" />
-      <span>{service.service}</span>
-      <small>{available ? "ready" : "offline"}</small>
-    </div>
-  );
-}
-
-function HomeView({
-  state,
-  services,
-  onNavigate
-}: {
-  state: Loadable<Dashboard>;
-  services: ServiceHealth[];
-  onNavigate: (view: View) => void;
-}) {
-  const data = state.data ?? emptyDashboard;
-  const readyServices = services.filter((service) => service.available !== false && !service.error).length;
+function HomeView({ onNavigate }: { onNavigate: (view: View) => void }) {
   const features = [
     {
       icon: Monitor,
       title: "Any-window OCR overlay",
       view: "capture",
       detail:
-        "Launch a local hotkey overlay from the browser, drag over game or browser text, then save words and kanji to a resource."
+        "Capture game or browser text, then save useful words and kanji to a resource."
     },
     {
       icon: ClipboardList,
@@ -323,35 +269,21 @@ function HomeView({
       title: "Resource quizzes",
       view: "quiz",
       detail:
-        "Turn tracked terms into quick recall sessions and persist quiz attempts locally for each resource."
+        "Turn tracked terms into quick recall sessions for each resource."
     },
     {
       icon: Pencil,
       title: "Handwriting recognition",
       view: "draw",
       detail:
-        "Draw unknown kanji and query the local recognition service for ranked candidates."
+        "Draw unknown kanji and inspect ranked candidates."
     },
     {
       icon: Mic,
       title: "Pronunciation model",
       view: "speech",
       detail:
-        "Keep speech recordings and lightweight model training local while the app grows toward richer feedback."
-    },
-    {
-      icon: Wrench,
-      title: "Runtime doctor",
-      view: "runtime",
-      detail:
-        "Check overlay dependencies, writable local storage, platform permission hints, and companion service health from the browser."
-    },
-    {
-      icon: Shield,
-      title: "Private by default",
-      view: "dashboard",
-      detail:
-        "SQLite, uploads, OCR captures, and model artifacts stay in ignored local paths with no public deployment assumptions."
+        "Review speech recordings and train a lightweight model as the feedback loop grows."
     }
   ] as const;
 
@@ -362,9 +294,9 @@ function HomeView({
           <span className="eyebrow">Read Japanese where you actually meet it</span>
           <h2>Capture text from games, track what matters, and drill it by resource.</h2>
           <p>
-            Yomunami is a local-first Japanese study cockpit for immersion workflows: OCR any window,
-            collect vocabulary from real media, look up kanji and words, practice handwriting, and run
-            lightweight quizzes without sending your study data to a hosted app.
+            Yomunami helps you turn immersion into review: capture text from real media, collect
+            vocabulary by source, look up kanji and words, practice handwriting, and run lightweight
+            quizzes from what you actually read.
           </p>
           <div className="hero-actions">
             <button className="primary-button" type="button" onClick={() => onNavigate("capture")}>
@@ -375,26 +307,6 @@ function HomeView({
               <Boxes size={17} />
               Add a resource
             </button>
-          </div>
-        </div>
-        <div className="hero-console" aria-label="Local workspace summary">
-          <div>
-            <span>Resources</span>
-            <strong>{data.counts.resources.toLocaleString()}</strong>
-          </div>
-          <div>
-            <span>Dictionary words</span>
-            <strong>{data.counts.words.toLocaleString()}</strong>
-          </div>
-          <div>
-            <span>OCR images</span>
-            <strong>{data.counts.images.toLocaleString()}</strong>
-          </div>
-          <div>
-            <span>Services ready</span>
-            <strong>
-              {readyServices}/{services.length || 3}
-            </strong>
           </div>
         </div>
       </div>
@@ -463,7 +375,7 @@ function DashboardView({
       <div className="status-band">
         <div>
           <span className="eyebrow">Study state</span>
-          <h2>{state.loading ? "Loading local workspace" : "Ready on this machine"}</h2>
+          <h2>{state.loading ? "Loading workspace" : "Ready"}</h2>
           {state.error && <p className="error-text">{state.error}</p>}
         </div>
         <button className="primary-button" type="button" onClick={onRefresh}>
@@ -540,6 +452,43 @@ const databaseQuickSearches: Record<DatabaseTab, Array<{ label: string; value: s
   ]
 };
 
+type ImportAction = {
+  jobType: ImportJob["jobType"];
+  title: string;
+  detail: string;
+  payload?: Omit<Parameters<typeof api.createImportJob>[0], "jobType">;
+};
+
+const importActions: ImportAction[] = [
+  {
+    jobType: "starter_data",
+    title: "Import starter data",
+    detail: "Adds a small useful set of kanji, words, sentences, and graph links."
+  },
+  {
+    jobType: "kanjidic2",
+    title: "Import KANJIDIC2",
+    detail: "Downloads the kanji dataset if needed, saves it on disk, then imports it."
+  },
+  {
+    jobType: "jmdict",
+    title: "Import JMdict",
+    detail: "Downloads the English dictionary if needed, saves it on disk, then imports it."
+  },
+  {
+    jobType: "sentence_examples",
+    title: "Import sentences",
+    detail: "Imports the saved sentence TSV from the app's import folder.",
+    payload: { source: "saved-tsv" }
+  },
+  {
+    jobType: "kanji_graph",
+    title: "Build kanji graph",
+    detail: "Creates relation edges from imported kanji metadata.",
+    payload: { limit: 3000, maxEdges: 24, maxGroupSize: 240 }
+  }
+];
+
 function DatabaseView() {
   const [activeTab, setActiveTab] = useState<DatabaseTab>("words");
   const [queries, setQueries] = useState<Record<DatabaseTab, string>>(defaultDatabaseQueries);
@@ -561,16 +510,8 @@ function DatabaseView() {
     loading: true,
     error: null
   });
-  const [importForm, setImportForm] = useState({
-    jobType: "starter_data" as ImportJob["jobType"],
-    inputPath: "",
-    source: "local-tsv",
-    limit: "",
-    maxEdges: "24",
-    maxGroupSize: "240"
-  });
   const [importMessage, setImportMessage] = useState<string | null>(null);
-  const [importSubmitting, setImportSubmitting] = useState(false);
+  const [importSubmitting, setImportSubmitting] = useState<ImportJob["jobType"] | null>(null);
   const query = queries[activeTab];
   const setActiveQuery = (value: string) => {
     setQueries((current) => ({ ...current, [activeTab]: value }));
@@ -629,34 +570,19 @@ function DatabaseView() {
     }
   }
 
-  async function submitImportJob(event: React.FormEvent) {
-    event.preventDefault();
-    setImportSubmitting(true);
+  async function startImportJob(action: ImportAction) {
+    setImportSubmitting(action.jobType);
     setImportMessage(null);
     setImportJobs((current) => ({ ...current, error: null }));
 
     try {
-      const jobType = importForm.jobType;
-      const payload: Parameters<typeof api.createImportJob>[0] = {
-        jobType
-      };
-      if (jobType !== "kanji_graph" && jobType !== "starter_data") {
-        payload.inputPath = importForm.inputPath.trim();
-      }
-      if (jobType === "sentence_examples") {
-        payload.source = importForm.source.trim() || "local-tsv";
-      }
-      if ((jobType === "jmdict" || jobType === "kanji_graph") && importForm.limit.trim()) {
-        payload.limit = Number(importForm.limit);
-      }
-      if (jobType === "kanji_graph") {
-        payload.maxEdges = Number(importForm.maxEdges) || 24;
-        payload.maxGroupSize = Number(importForm.maxGroupSize) || 240;
-      }
-
-      const response = await api.createImportJob(payload);
+      const response = await api.createImportJob({
+        jobType: action.jobType,
+        ...action.payload
+      });
       setImportMessage(`Started ${labelForImportJob(response.job.jobType)} job #${response.job.id}.`);
       await loadImportJobs();
+      await loadSummary();
     } catch (requestError) {
       setImportJobs({
         data: importJobs.data ?? [],
@@ -664,7 +590,7 @@ function DatabaseView() {
         error: requestError instanceof Error ? requestError.message : "Could not start import job"
       });
     } finally {
-      setImportSubmitting(false);
+      setImportSubmitting(null);
     }
   }
 
@@ -743,10 +669,10 @@ function DatabaseView() {
     <section className="database-view">
       <div className="status-band database-hero">
         <div>
-          <span className="eyebrow">Local database explorer</span>
+          <span className="eyebrow">Database explorer</span>
           <h2>Words, kanji, examples, and relation graphs</h2>
           <p className="helper-text">
-            Import public datasets into SQLite, then browse them locally with search, examples, and graph explanations.
+            Import public datasets, then browse them with search, examples, and graph explanations.
           </p>
           {summary.error && <p className="error-text">{summary.error}</p>}
         </div>
@@ -767,16 +693,14 @@ function DatabaseView() {
       </div>
 
       <ImportManager
-        form={importForm}
         jobs={importJobs}
         message={importMessage}
         submitting={importSubmitting}
-        onFormChange={setImportForm}
         onRefresh={() => {
           void loadImportJobs();
           void loadSummary();
         }}
-        onSubmit={(event) => void submitImportJob(event)}
+        onStart={(action) => void startImportJob(action)}
       />
 
       <section className="panel database-panel">
@@ -830,140 +754,58 @@ function DatabaseView() {
 }
 
 function ImportManager({
-  form,
   jobs,
   message,
   submitting,
-  onFormChange,
   onRefresh,
-  onSubmit
+  onStart
 }: {
-  form: {
-    jobType: ImportJob["jobType"];
-    inputPath: string;
-    source: string;
-    limit: string;
-    maxEdges: string;
-    maxGroupSize: string;
-  };
   jobs: Loadable<ImportJob[]>;
   message: string | null;
-  submitting: boolean;
-  onFormChange: React.Dispatch<React.SetStateAction<{
-    jobType: ImportJob["jobType"];
-    inputPath: string;
-    source: string;
-    limit: string;
-    maxEdges: string;
-    maxGroupSize: string;
-  }>>;
+  submitting: ImportJob["jobType"] | null;
   onRefresh: () => void;
-  onSubmit: (event: React.FormEvent) => void;
+  onStart: (action: ImportAction) => void;
 }) {
-  const requiresPath = form.jobType !== "kanji_graph" && form.jobType !== "starter_data";
-
   return (
     <section className="panel import-panel">
       <div className="panel-heading">
-        <h2>Import Jobs</h2>
+        <h2>Import Data</h2>
         <button className="secondary-button compact-button" type="button" onClick={onRefresh}>
           <RotateCcw size={16} />
           Refresh
         </button>
       </div>
-      <form className="import-form" onSubmit={onSubmit}>
-        <label>
-          Job type
-          <select
-            value={form.jobType}
-            onChange={(event) =>
-              onFormChange((current) => ({ ...current, jobType: event.target.value as ImportJob["jobType"] }))
-            }
+      <div className="import-action-grid">
+        {importActions.map((action) => (
+          <button
+            className="import-action-button"
+            type="button"
+            key={action.jobType}
+            disabled={submitting !== null}
+            onClick={() => onStart(action)}
           >
-            <option value="starter_data">Starter sample data</option>
-            <option value="kanjidic2">KANJIDIC2 kanji</option>
-            <option value="jmdict">JMdict words</option>
-            <option value="sentence_examples">Sentence examples</option>
-            <option value="kanji_graph">Build kanji graph</option>
-          </select>
-        </label>
-        {requiresPath && (
-          <label className="import-path-field">
-            Local file path
-            <input
-              value={form.inputPath}
-              onChange={(event) => onFormChange((current) => ({ ...current, inputPath: event.target.value }))}
-              placeholder="C:\path\to\dataset.xml"
-            />
-          </label>
-        )}
-        {form.jobType === "sentence_examples" && (
-          <label>
-            Source label
-            <input
-              value={form.source}
-              onChange={(event) => onFormChange((current) => ({ ...current, source: event.target.value }))}
-              placeholder="tatoeba"
-            />
-          </label>
-        )}
-        {(form.jobType === "jmdict" || form.jobType === "kanji_graph") && (
-          <label>
-            Limit
-            <input
-              value={form.limit}
-              onChange={(event) => onFormChange((current) => ({ ...current, limit: event.target.value }))}
-              inputMode="numeric"
-              placeholder={form.jobType === "jmdict" ? "optional" : "3000"}
-            />
-          </label>
-        )}
-        {form.jobType === "kanji_graph" && (
-          <>
-            <label>
-              Edges
-              <input
-                value={form.maxEdges}
-                onChange={(event) => onFormChange((current) => ({ ...current, maxEdges: event.target.value }))}
-                inputMode="numeric"
-              />
-            </label>
-            <label>
-              Group cap
-              <input
-                value={form.maxGroupSize}
-                onChange={(event) => onFormChange((current) => ({ ...current, maxGroupSize: event.target.value }))}
-                inputMode="numeric"
-              />
-            </label>
-          </>
-        )}
-        <button className="primary-button" type="submit" disabled={submitting || (requiresPath && !form.inputPath.trim())}>
-          <Play size={17} />
-          {submitting ? "Starting..." : "Start job"}
-        </button>
-      </form>
+            <Play size={17} />
+            <span>
+              <strong>{submitting === action.jobType ? "Starting..." : action.title}</strong>
+              <small>{action.detail}</small>
+            </span>
+          </button>
+        ))}
+      </div>
       {message && <p className="success-text">{message}</p>}
       {jobs.error && <p className="error-text">{jobs.error}</p>}
       <ImportJobList jobs={jobs} />
-      <div className="command-list">
-        <code>py -3 scripts/import_kanjidic2.py C:\path\to\kanjidic2.xml</code>
-        <code>py -3 scripts/import_jmdict.py C:\path\to\JMdict_e.xml</code>
-        <code>py -3 scripts/import_sentence_examples.py C:\path\to\sentences.tsv --source tatoeba</code>
-        <code>py -3 scripts/seed_starter_data.py</code>
-        <code>py -3 scripts/build_kanji_graph.py</code>
-      </div>
     </section>
   );
 }
 
 function ImportJobList({ jobs }: { jobs: Loadable<ImportJob[]> }) {
   if (jobs.loading && (!jobs.data || jobs.data.length === 0)) {
-    return <EmptyState title="Loading jobs" detail="Reading recent local import jobs." />;
+    return <EmptyState title="Loading jobs" detail="Reading recent import jobs." />;
   }
 
   if (!jobs.data || jobs.data.length === 0) {
-    return <EmptyState title="No import jobs yet" detail="Start an import or run one of the commands below." />;
+    return <EmptyState title="No import jobs yet" detail="Choose an import to begin." />;
   }
 
   return (
@@ -972,7 +814,7 @@ function ImportJobList({ jobs }: { jobs: Loadable<ImportJob[]> }) {
         <article className="import-job-row" key={job.id}>
           <div>
             <strong>{labelForImportJob(job.jobType)}</strong>
-            <small>{job.inputPath || "derived from current database"}</small>
+            <small>{descriptionForImportJob(job)}</small>
           </div>
           <span className={`status-pill ${job.status === "failed" ? "error" : job.status === "completed" ? "ok" : "warn"}`}>
             {job.status}
@@ -994,9 +836,22 @@ function labelForImportJob(jobType: ImportJob["jobType"]) {
   }[jobType];
 }
 
+function descriptionForImportJob(job: ImportJob) {
+  if (job.jobType === "starter_data") {
+    return "No file needed";
+  }
+  if (job.jobType === "kanji_graph") {
+    return "Built from imported kanji";
+  }
+  if (job.jobType === "kanjidic2" || job.jobType === "jmdict") {
+    return "Saved in the import folder";
+  }
+  return "Saved sentence TSV";
+}
+
 function WordDatabaseResults({ state }: { state: Loadable<Word[]> }) {
   if (state.loading) {
-    return <EmptyState title="Searching words" detail="Reading local JMdict entries." />;
+    return <EmptyState title="Searching words" detail="Reading JMdict entries." />;
   }
 
   if (state.error) {
@@ -1032,7 +887,7 @@ function WordDatabaseResults({ state }: { state: Loadable<Word[]> }) {
 
 function KanjiDatabaseResults({ state }: { state: Loadable<Kanji[]> }) {
   if (state.loading) {
-    return <EmptyState title="Searching kanji" detail="Reading local KANJIDIC2 metadata." />;
+    return <EmptyState title="Searching kanji" detail="Reading KANJIDIC2 metadata." />;
   }
 
   if (state.error) {
@@ -1063,7 +918,7 @@ function KanjiDatabaseResults({ state }: { state: Loadable<Kanji[]> }) {
 
 function SentenceDatabaseResults({ state }: { state: Loadable<SentenceExample[]> }) {
   if (state.loading) {
-    return <EmptyState title="Searching examples" detail="Reading local sentence examples." />;
+    return <EmptyState title="Searching examples" detail="Reading sentence examples." />;
   }
 
   if (state.error) {
@@ -1260,7 +1115,7 @@ function ProfileView() {
         {summary.data ? (
           <KanjiXpTimeline history={summary.data.kanjiXpHistory} />
         ) : summary.loading ? (
-          <EmptyState title="Loading profile graph" detail="Reading local kanji experience history." />
+          <EmptyState title="Loading profile graph" detail="Reading kanji experience history." />
         ) : (
           <EmptyState title="No profile data yet" detail="Capture or mark kanji as seen to build a history graph." />
         )}
@@ -1282,7 +1137,7 @@ function ProfileView() {
         </div>
       ) : summary.loading ? (
         <section className="panel">
-          <EmptyState title="Loading analytics" detail="Reading your local knowledge profile." />
+          <EmptyState title="Loading analytics" detail="Reading your knowledge profile." />
         </section>
       ) : null}
 
@@ -1314,7 +1169,7 @@ function ProfileView() {
   );
 }
 
-function RuntimeView({ onServicesChange }: { onServicesChange: () => void }) {
+function RuntimeView() {
   const [doctor, setDoctor] = useState<Loadable<RuntimeDoctor>>({
     data: null,
     loading: true,
@@ -1355,7 +1210,6 @@ function RuntimeView({ onServicesChange }: { onServicesChange: () => void }) {
             : "OCR service launch was already requested."
       );
       await loadDoctor();
-      onServicesChange();
     } catch (requestError) {
       setOcrLaunchError(requestError instanceof Error ? requestError.message : "Could not start OCR service");
     } finally {
@@ -1367,15 +1221,15 @@ function RuntimeView({ onServicesChange }: { onServicesChange: () => void }) {
   const summaryCopy = {
     ok: {
       title: "Runtime ready",
-      detail: "The local API, overlay runtime, storage paths, and companion services are ready."
+      detail: "The API, overlay runtime, storage paths, and companion services are ready."
     },
     warn: {
       title: "Runtime needs attention",
-      detail: "One or more optional local services or platform permissions may need setup."
+      detail: "One or more optional services or platform permissions may need setup."
     },
     error: {
       title: "Runtime blocked",
-      detail: "A required local path, script, or Python dependency is missing."
+      detail: "A required path, script, or Python dependency is missing."
     }
   }[summary];
 
@@ -1383,7 +1237,7 @@ function RuntimeView({ onServicesChange }: { onServicesChange: () => void }) {
     <section className="runtime-view">
       <div className={`runtime-summary ${summary}`}>
         <div>
-          <span className="eyebrow">Local runtime doctor</span>
+          <span className="eyebrow">Runtime doctor</span>
           <h2>{doctor.loading ? "Checking this machine" : summaryCopy.title}</h2>
           <p>{doctor.error ?? summaryCopy.detail}</p>
         </div>
@@ -1426,7 +1280,7 @@ function RuntimeView({ onServicesChange }: { onServicesChange: () => void }) {
       {ocrLaunchError && <p className="error-text">{ocrLaunchError}</p>}
 
       {!doctor.loading && !doctor.error && doctor.data?.checks.length === 0 && (
-        <EmptyState title="No checks returned" detail="The local API responded, but no runtime checks were reported." />
+        <EmptyState title="No checks returned" detail="The API responded, but no runtime checks were reported." />
       )}
     </section>
   );
@@ -1434,12 +1288,10 @@ function RuntimeView({ onServicesChange }: { onServicesChange: () => void }) {
 
 function CaptureView({
   onChange,
-  onNavigate,
-  onServicesChange
+  onNavigate
 }: {
   onChange: () => void;
   onNavigate: (view: View) => void;
-  onServicesChange: () => void;
 }) {
   const [resources, setResources] = useState<Resource[]>([]);
   const [selectedResourceId, setSelectedResourceId] = useState<number | null>(null);
@@ -1519,7 +1371,6 @@ function CaptureView({
             : "OCR service launch was already requested."
       );
       await loadOcrServiceStatus();
-      onServicesChange();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not start OCR service");
     } finally {
@@ -1597,10 +1448,8 @@ function CaptureView({
       ? "OCR model is warming up."
       : "Start OCR before capturing text.";
   const ocrDetail = ocrWarming
-    ? `Loading ${ocrHealth?.active_backend ?? "OCR"} locally. Refresh in a moment before capturing text.`
-    : `The overlay and screenshot uploader both send images to the local OCR service at ${
-        ocrService.data?.url ?? "http://127.0.0.1:5100"
-      }.`;
+    ? `Loading ${ocrHealth?.active_backend ?? "OCR"}. Refresh in a moment before capturing text.`
+    : "The overlay and screenshot uploader are ready to process captured text.";
   const overlayRuntime = overlay.data?.launchTarget === "app-bundle"
     ? "Yomunami app"
     : overlay.data?.pythonDetail ?? overlay.data?.python ?? "python";
@@ -1627,8 +1476,8 @@ function CaptureView({
           <div>
             <strong>Capture Japanese text from any visible window.</strong>
             <p>
-              Launch the local overlay, select a resource, then press the hotkey over a game,
-              emulator, browser, or document. Use tighter region selection when the screen is dense.
+              Launch the overlay, select a resource, then press the hotkey over a game, emulator,
+              browser, or document. Use tighter region selection when the screen is dense.
             </p>
           </div>
         </div>
@@ -1892,7 +1741,7 @@ function ResourcesView({ onChange }: { onChange: () => void }) {
         </div>
         {error && <p className="error-text">{error}</p>}
         {resources.length === 0 ? (
-          <EmptyState title="Your local shelf is empty" detail="Create a resource to start attaching words, kanji, OCR captures, and notes." />
+          <EmptyState title="Your shelf is empty" detail="Create a resource to start attaching words, kanji, OCR captures, and notes." />
         ) : (
           <div className="resource-grid">
             {resources.map((resource) => (
@@ -2115,7 +1964,7 @@ function TrackerView({ onChange }: { onChange: () => void }) {
           </div>
           {wordLookup.error && <p className="error-text">{wordLookup.error}</p>}
           {wordLookup.loading ? (
-            <EmptyState title="Searching dictionary" detail="Reading local word entries." />
+            <EmptyState title="Searching dictionary" detail="Reading word entries." />
           ) : wordLookupQuery.trim() && wordLookup.data && wordLookup.data.length === 0 ? (
             <EmptyState title="No matching words" detail="Try kana, kanji, romaji, or an English gloss." />
           ) : wordLookup.data && wordLookup.data.length > 0 ? (
@@ -2730,7 +2579,7 @@ function OcrView() {
       <div className="panel upload-panel">
         <FileImage size={28} />
         <h2>Image OCR</h2>
-        <p>Send a screenshot or cropped text image to the local OCR service.</p>
+        <p>Send a screenshot or cropped text image through OCR.</p>
         <label className="file-button">
           <Upload size={18} />
           {busy ? "Processing..." : "Choose image"}
@@ -2750,7 +2599,7 @@ function OcrView() {
           <span>{result?.elements.length ?? 0} elements</span>
         </div>
         {!result ? (
-          <EmptyState title="No OCR result yet" detail="Run the local OCR service and upload an image." />
+          <EmptyState title="No OCR result yet" detail="Start OCR and upload an image." />
         ) : (
           <>
             <pre className="ocr-text">{result.rawText}</pre>
@@ -2877,7 +2726,7 @@ function DrawView() {
           <span>{result?.stroke_count ?? paths.length} strokes</span>
         </div>
         {!result ? (
-          <EmptyState title="Draw a kanji" detail="The local recognition service returns ranked candidates." />
+          <EmptyState title="Draw a kanji" detail="Recognition returns ranked candidates." />
         ) : (
           <div className="recognition-list">
             {result.results?.map((item) => (

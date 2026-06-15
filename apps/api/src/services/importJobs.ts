@@ -1,5 +1,7 @@
 import path from "node:path";
+import fs from "node:fs";
 import { spawn } from "node:child_process";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import type Database from "better-sqlite3";
 import { config } from "../config.js";
 import { getDb, readJson, touchNow, writeJson } from "../db/index.js";
@@ -32,6 +34,28 @@ export type ImportJobRow = {
 };
 
 const outputLimit = 30000;
+const importDataRoot = path.join(config.repoRoot, "data/local/imports");
+
+type ResolvedImportJobOptions = ImportJobOptions & {
+  inputPath?: string | null;
+};
+
+const defaultDatasetSources: Partial<Record<ImportJobType, { inputPath: string; url?: string; label: string }>> = {
+  kanjidic2: {
+    inputPath: path.join(importDataRoot, "kanjidic2.xml.gz"),
+    url: "https://www.edrdg.org/kanjidic/kanjidic2.xml.gz",
+    label: "KANJIDIC2"
+  },
+  jmdict: {
+    inputPath: path.join(importDataRoot, "JMdict_e.gz"),
+    url: "http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz",
+    label: "JMdict"
+  },
+  sentence_examples: {
+    inputPath: path.join(importDataRoot, "sentence_examples.tsv"),
+    label: "sentence examples TSV"
+  }
+};
 
 export function mapImportJob(row: ImportJobRow) {
   return {
@@ -53,7 +77,8 @@ export function mapImportJob(row: ImportJobRow) {
 
 export function createImportJob(options: ImportJobOptions) {
   const db = getDb();
-  const jobArgs = buildJobArgs(options);
+  const resolvedOptions = resolveImportJobOptions(options);
+  const jobArgs = buildJobArgs(resolvedOptions);
   const now = touchNow();
   const result = db
     .prepare(
@@ -61,10 +86,10 @@ export function createImportJob(options: ImportJobOptions) {
        (job_type, status, input_path, args_json, updated_at)
        VALUES (?, 'queued', ?, ?, ?)`
     )
-    .run(options.jobType, options.inputPath ?? null, writeJson(jobArgs), now);
+    .run(resolvedOptions.jobType, resolvedOptions.inputPath ?? null, writeJson(jobArgs), now);
   const job = db.prepare("SELECT * FROM import_jobs WHERE id = ?").get(result.lastInsertRowid) as ImportJobRow;
 
-  startImportJob(job, jobArgs);
+  startImportJob(job, resolvedOptions);
   return mapImportJob(job);
 }
 
@@ -79,7 +104,11 @@ export function getImportJob(id: number) {
   return row ? mapImportJob(row) : null;
 }
 
-function startImportJob(job: ImportJobRow, jobArgs: string[]) {
+function startImportJob(job: ImportJobRow, options: ResolvedImportJobOptions) {
+  void runImportJob(job, options);
+}
+
+async function runImportJob(job: ImportJobRow, options: ResolvedImportJobOptions) {
   const db = getDb();
   const python = pythonCommand();
   const startedAt = touchNow();
@@ -89,22 +118,43 @@ function startImportJob(job: ImportJobRow, jobArgs: string[]) {
     job.id
   );
 
+  let stdout = "";
+  let stderr = "";
+
+  const updateStdout = (chunk: string) => {
+    stdout = trimOutput(stdout + chunk);
+    updateOutput(db, job.id, stdout, stderr);
+  };
+  const updateStderr = (chunk: string) => {
+    stderr = trimOutput(stderr + chunk);
+    updateOutput(db, job.id, stdout, stderr);
+  };
+
+  try {
+    await ensureImportInput(options, updateStdout);
+  } catch (error) {
+    const now = touchNow();
+    const message = error instanceof Error ? error.message : "Could not prepare import input";
+    db.prepare(
+      `UPDATE import_jobs
+       SET status = 'failed', error = ?, stdout = ?, stderr = ?, completed_at = ?, updated_at = ?
+       WHERE id = ?`
+    ).run(message, stdout, trimOutput(stderr + message), now, now, job.id);
+    return;
+  }
+
+  const jobArgs = buildJobArgs(options);
   const child = spawn(python.command, [...python.prefixArgs, ...jobArgs], {
     cwd: config.repoRoot,
     windowsHide: true
   });
 
-  let stdout = "";
-  let stderr = "";
-
   child.stdout.on("data", (chunk: Buffer) => {
-    stdout = trimOutput(stdout + chunk.toString("utf8"));
-    updateOutput(db, job.id, stdout, stderr);
+    updateStdout(chunk.toString("utf8"));
   });
 
   child.stderr.on("data", (chunk: Buffer) => {
-    stderr = trimOutput(stderr + chunk.toString("utf8"));
-    updateOutput(db, job.id, stdout, stderr);
+    updateStderr(chunk.toString("utf8"));
   });
 
   child.on("error", (error) => {
@@ -121,12 +171,76 @@ function startImportJob(job: ImportJobRow, jobArgs: string[]) {
     db.prepare(
       `UPDATE import_jobs
        SET status = ?, exit_code = ?, stdout = ?, stderr = ?, completed_at = ?, updated_at = ?
-       WHERE id = ?`
+      WHERE id = ?`
     ).run(code === 0 ? "completed" : "failed", code, stdout, stderr, now, now, job.id);
   });
 }
 
-function buildJobArgs(options: ImportJobOptions) {
+function resolveImportJobOptions(options: ImportJobOptions): ResolvedImportJobOptions {
+  if (options.inputPath || options.jobType === "starter_data" || options.jobType === "kanji_graph") {
+    return options;
+  }
+
+  const defaultSource = defaultDatasetSources[options.jobType];
+  return defaultSource
+    ? {
+        ...options,
+        inputPath: defaultSource.inputPath
+      }
+    : options;
+}
+
+async function ensureImportInput(options: ResolvedImportJobOptions, updateStdout: (chunk: string) => void) {
+  if (options.jobType === "starter_data" || options.jobType === "kanji_graph") {
+    return;
+  }
+
+  if (!options.inputPath) {
+    throw new Error("No import file was configured for this job.");
+  }
+
+  const defaultSource = defaultDatasetSources[options.jobType];
+  const isDefaultInput = defaultSource && path.resolve(options.inputPath) === defaultSource.inputPath;
+
+  if (isDefaultInput && defaultSource.url && !fs.existsSync(defaultSource.inputPath)) {
+    await downloadDefaultDataset(defaultSource, updateStdout);
+  }
+
+  if (!fs.existsSync(options.inputPath)) {
+    const relativePath = path.relative(config.repoRoot, options.inputPath);
+    throw new Error(`Missing ${defaultSource?.label ?? "import file"}. Save it at ${relativePath} and start the import again.`);
+  }
+}
+
+async function downloadDefaultDataset(
+  source: { inputPath: string; url?: string; label: string },
+  updateStdout: (chunk: string) => void
+) {
+  if (!source.url) {
+    return;
+  }
+
+  await mkdir(path.dirname(source.inputPath), { recursive: true });
+  const relativePath = path.relative(config.repoRoot, source.inputPath);
+  updateStdout(`Downloading ${source.label} to ${relativePath}\n`);
+
+  const response = await fetch(source.url);
+  if (!response.ok) {
+    throw new Error(`Could not download ${source.label}: HTTP ${response.status}`);
+  }
+
+  const tempPath = `${source.inputPath}.download`;
+  try {
+    await writeFile(tempPath, Buffer.from(await response.arrayBuffer()));
+    await rename(tempPath, source.inputPath);
+    updateStdout(`Saved ${source.label} to ${relativePath}\n`);
+  } catch (error) {
+    await rm(tempPath, { force: true });
+    throw error;
+  }
+}
+
+function buildJobArgs(options: ResolvedImportJobOptions) {
   const script = scriptFor(options.jobType);
   const args = [script];
 

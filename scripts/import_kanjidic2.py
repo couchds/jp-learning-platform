@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -50,7 +51,9 @@ def import_kanjidic2(xml_path: Path, db_path: Path) -> int:
     conn.execute("PRAGMA foreign_keys = ON")
     require_tables(conn)
 
-    tree = ElementTree.parse(xml_path)
+    open_xml = gzip.open if xml_path.suffix == ".gz" else open
+    with open_xml(xml_path, "rb") as handle:
+        tree = ElementTree.parse(handle)
     root = tree.getroot()
     count = 0
 

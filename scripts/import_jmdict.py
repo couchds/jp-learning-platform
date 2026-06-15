@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -148,29 +149,31 @@ def import_jmdict(xml_path: Path, db_path: Path, limit: int | None) -> int:
     require_tables(conn)
 
     count = 0
-    context = ElementTree.iterparse(xml_path, events=("start", "end"))
-    root: ElementTree.Element | None = None
+    open_xml = gzip.open if xml_path.suffix == ".gz" else open
+    with open_xml(xml_path, "rb") as handle:
+        context = ElementTree.iterparse(handle, events=("start", "end"))
+        root: ElementTree.Element | None = None
 
-    with conn:
-        for event, element in context:
-            if event == "start" and root is None:
-                root = element
-                continue
+        with conn:
+            for event, element in context:
+                if event == "start" and root is None:
+                    root = element
+                    continue
 
-            if event != "end" or element.tag != "entry":
-                continue
+                if event != "end" or element.tag != "entry":
+                    continue
 
-            if upsert_entry(conn, element, now):
-                count += 1
-                if count % 10000 == 0:
-                    print(f"Imported {count} entries...")
+                if upsert_entry(conn, element, now):
+                    count += 1
+                    if count % 10000 == 0:
+                        print(f"Imported {count} entries...")
 
-            element.clear()
-            if root is not None:
-                root.clear()
+                element.clear()
+                if root is not None:
+                    root.clear()
 
-            if limit is not None and count >= limit:
-                break
+                if limit is not None and count >= limit:
+                    break
 
     conn.close()
     return count
