@@ -12,7 +12,6 @@ import {
   Gauge,
   Home,
   Keyboard,
-  Layers,
   Mic,
   Monitor,
   Pencil,
@@ -298,43 +297,6 @@ function HomeView({ onNavigate }: { onNavigate: (view: View) => void }) {
   }
 
   const resourceItems = resources.data ?? [];
-  const features = [
-    {
-      icon: Monitor,
-      title: "Any-window OCR overlay",
-      view: "capture",
-      detail:
-        "Capture game or browser text, then save useful words and kanji to a resource."
-    },
-    {
-      icon: ClipboardList,
-      title: "Resource tracker",
-      view: "tracker",
-      detail:
-        "Organize manga, games, sites, books, and shows with captured vocabulary, kanji, notes, and OCR history."
-    },
-    {
-      icon: Trophy,
-      title: "Resource quizzes",
-      view: "quiz",
-      detail:
-        "Turn tracked terms into quick recall sessions for each resource."
-    },
-    {
-      icon: Pencil,
-      title: "Handwriting recognition",
-      view: "draw",
-      detail:
-        "Draw unknown kanji and inspect ranked candidates."
-    },
-    {
-      icon: Mic,
-      title: "Pronunciation model",
-      view: "speech",
-      detail:
-        "Review speech recordings and train a lightweight model as the feedback loop grows."
-    }
-  ] as const;
 
   return (
     <section className="home-view">
@@ -345,9 +307,14 @@ function HomeView({ onNavigate }: { onNavigate: (view: View) => void }) {
             <h2>What are you studying?</h2>
           </div>
           <div className="button-row">
-            <button className="secondary-button compact-button" type="button" onClick={() => void loadResources()}>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="Refresh resources"
+              title="Refresh resources"
+              onClick={() => void loadResources()}
+            >
               <RotateCcw size={16} />
-              Refresh
             </button>
             <button className="primary-button compact-button" type="button" onClick={() => onNavigate("resources")}>
               <Plus size={16} />
@@ -361,19 +328,21 @@ function HomeView({ onNavigate }: { onNavigate: (view: View) => void }) {
         ) : resourceItems.length === 0 ? (
           <EmptyState title="Your shelf is empty" detail="Add a game, manga, book, show, or site to start tracking Japanese from it." />
         ) : (
-          <div className="resource-grid">
+          <div className="home-resource-list">
             {resourceItems.map((resource) => (
-              <article className="resource-card" key={resource.id}>
-                <div>
+              <article className="home-resource-row" key={resource.id}>
+                <div className="home-resource-main">
                   <span className="resource-type">{resource.type.replace("_", " ")}</span>
                   <h3>{resource.name}</h3>
-                  <p>{resource.description || "No notes yet."}</p>
+                  {resource.description && <p>{resource.description}</p>}
                 </div>
-                <div className="tag-list">
-                  {resource.tags.map((tag) => (
-                    <span key={tag}>{tag}</span>
-                  ))}
-                </div>
+                {resource.tags.length > 0 && (
+                  <div className="tag-list home-resource-tags">
+                    {resource.tags.slice(0, 3).map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                )}
                 <div className="button-row">
                   <button className="mini-button" type="button" onClick={() => onNavigate("tracker")}>
                     Tracker
@@ -386,45 +355,6 @@ function HomeView({ onNavigate }: { onNavigate: (view: View) => void }) {
             ))}
           </div>
         )}
-      </section>
-
-      <div className="feature-grid">
-        {features.map((feature) => {
-          const Icon = feature.icon;
-          return (
-            <article className="feature-card" key={feature.title}>
-              <Icon size={22} />
-              <h3>{feature.title}</h3>
-              <p>{feature.detail}</p>
-              <button
-                className="mini-button feature-card-action"
-                type="button"
-                aria-label={`Open ${feature.title}`}
-                onClick={() => onNavigate(feature.view)}
-              >
-                Open
-              </button>
-            </article>
-          );
-        })}
-      </div>
-
-      <section className="workflow-strip">
-        <div>
-          <Keyboard size={20} />
-          <span>Hotkey capture</span>
-          <strong>ctrl+shift+o</strong>
-        </div>
-        <div>
-          <Layers size={20} />
-          <span>Track by source</span>
-          <strong>game, manga, site, book</strong>
-        </div>
-        <div>
-          <Target size={20} />
-          <span>Practice loop</span>
-          <strong>capture, save, quiz</strong>
-        </div>
       </section>
     </section>
   );
