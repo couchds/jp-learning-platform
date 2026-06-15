@@ -25,6 +25,19 @@ export type Dashboard = {
   }>;
 };
 
+export type DataSummary = {
+  counts: {
+    kanji: number;
+    words: number;
+    sentences: number;
+    sentenceTerms: number;
+    kanjiRelations: number;
+    knowledgeItems: number;
+    resources: number;
+  };
+  latestUpdatedAt: string | null;
+};
+
 export type Resource = {
   id: number;
   name: string;
@@ -102,6 +115,54 @@ export type Word = {
   readings: string[];
   glosses: string[];
   partsOfSpeech: string[];
+};
+
+export type SentenceExample = {
+  id: number;
+  source: string;
+  sourceId: string | null;
+  japanese: string;
+  reading: string | null;
+  english: string | null;
+  metadata: Record<string, unknown>;
+  terms: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KanjiGraph = {
+  center: Kanji;
+  nodes: Array<{
+    literal: string;
+    kind: "center" | "related";
+    score?: number;
+    meanings?: string[];
+  }>;
+  edges: Array<{
+    source: string;
+    target: string;
+    relationType: string;
+    score: number;
+    reasons: Array<{ type: string; detail: string; score: number }>;
+  }>;
+  relations: Array<{
+    id: number;
+    sourceLiteral: string;
+    targetLiteral: string;
+    relationType: string;
+    score: number;
+    reasons: Array<{ type: string; detail: string; score: number }>;
+    target: {
+      id: number | null;
+      literal: string;
+      meanings: string[];
+      onReadings: string[];
+      kunReadings: string[];
+      strokeCount: number | null;
+      jlptLevel: number | null;
+      frequencyRank: number | null;
+    };
+  }>;
 };
 
 export type ServiceHealth = {

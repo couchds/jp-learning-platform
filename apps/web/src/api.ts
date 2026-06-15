@@ -1,7 +1,9 @@
 import type {
+  DataSummary,
   Dashboard,
   DesktopOverlayStatus,
   Kanji,
+  KanjiGraph,
   KnowledgeItem,
   KnowledgeSummary,
   LocalServiceLaunch,
@@ -15,6 +17,7 @@ import type {
   ResourceDetail,
   ResourceTerm,
   RuntimeDoctor,
+  SentenceExample,
   ServiceHealth,
   Word
 } from "./types";
@@ -68,6 +71,7 @@ async function requestServiceHealth(path: string) {
 export const api = {
   apiUrl: API_URL,
   health: () => request<unknown>("/health"),
+  dataSummary: () => request<DataSummary>("/api/data/summary"),
   dashboard: () => request<Dashboard>("/api/dashboard"),
   serviceHealth: async () => {
     const paths = ["/api/ocr/health", "/api/recognize/health", "/api/speech/health"];
@@ -176,6 +180,10 @@ export const api = {
     ),
   kanji: (search: string) => request<Page<Kanji>>(`/api/kanji?limit=24&search=${encodeURIComponent(search)}`),
   words: (search: string) => request<Page<Word>>(`/api/words?limit=24&search=${encodeURIComponent(search)}`),
+  sentences: (search: string) =>
+    request<Page<SentenceExample>>(`/api/sentences?limit=24&search=${encodeURIComponent(search)}`),
+  kanjiGraph: (literal: string, limit = 24) =>
+    request<KanjiGraph>(`/api/graph/kanji?literal=${encodeURIComponent(literal)}&limit=${limit}`),
   ocrImage: (file: File) => {
     const form = new FormData();
     form.append("image", file);

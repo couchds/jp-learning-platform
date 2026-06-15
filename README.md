@@ -166,7 +166,7 @@ py -3 scripts/import_sentence_examples.py C:\path\to\sentences.tsv --source tato
 py -3 scripts/build_kanji_graph.py
 ```
 
-Both importers default to `data/local/app.sqlite`. Pass `--db C:\path\to\app.sqlite` to target a different local database. For a quick JMdict smoke test, add `--limit 1000`.
+The import and graph scripts default to `data/local/app.sqlite`. Pass `--db C:\path\to\app.sqlite` to target a different local database. For a quick JMdict smoke test, add `--limit 1000`.
 
 Sentence TSV imports accept headers such as `source_id`, `japanese`, `english`, and `reading`. Use `--no-header` for files ordered as `source_id`, `japanese`, `english`, `reading`. The kanji graph builder derives similarity edges from imported KANJIDIC2 metadata.
 
@@ -179,6 +179,7 @@ Sentence TSV imports accept headers such as `source_id`, `japanese`, `english`, 
 ## Local API Surface
 
 - `GET /health`
+- `GET /api/data/summary`
 - `GET /api/desktop/overlay/status`
 - `POST /api/desktop/overlay/launch`
 - `GET|PUT /api/local/profile`
