@@ -10,6 +10,7 @@
 - Provide a tiny starter dataset as a demo/onboarding path, separate from full public datasets. Starter data should be clearly labeled and safe to overwrite by rerunning the seed.
 - Keep database search state independent by tab and expose quick filters. Words, kanji, sentences, and graph exploration have different query shapes, so a single shared query makes cross-tab browsing feel noisy.
 - Use D3-generated SVG geometry for analytics instead of hand-scaled SVG primitives. Charts should keep a stable viewBox and avoid `preserveAspectRatio="none"` so labels, lines, and marks do not distort on wide screens.
+- Build knowledge-network analytics server-side from local `user_knowledge` and `kanji_relations`. The API should send graph-ready nodes and links so the frontend can focus on visual layout while keeping relationship rules centralized.
 
 ## Dictionary Explorer Direction
 

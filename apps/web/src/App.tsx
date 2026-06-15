@@ -32,7 +32,13 @@ import {
   X
 } from "lucide-react";
 import { api } from "./api";
-import { KanjiXpTimeline, KnowledgeCompositionDonut, TopKanjiBarChart } from "./KnowledgeVisuals";
+import {
+  EventSourceBars,
+  KanjiKnowledgeNetwork,
+  KanjiXpTimeline,
+  KnowledgeCompositionDonut,
+  TopKanjiBarChart
+} from "./KnowledgeVisuals";
 import type {
   DataSummary,
   Dashboard,
@@ -1210,6 +1216,31 @@ function ProfileView() {
         <section className="panel">
           <EmptyState title="Loading analytics" detail="Reading your local knowledge profile." />
         </section>
+      ) : null}
+
+      {summary.data ? (
+        <div className="analytics-dashboard-grid network-dashboard-grid">
+          <section className="panel analytics-card analytics-card-wide">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">Relationship map</span>
+                <h2>Kanji Knowledge Network</h2>
+              </div>
+              <span>{summary.data.kanjiNetwork.nodes.length} nodes</span>
+            </div>
+            <KanjiKnowledgeNetwork network={summary.data.kanjiNetwork} />
+          </section>
+          <section className="panel analytics-card">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">Activity sources</span>
+                <h2>Where XP Comes From</h2>
+              </div>
+              <span>last 30 days</span>
+            </div>
+            <EventSourceBars items={summary.data.eventSourceBreakdown} />
+          </section>
+        </div>
       ) : null}
     </section>
   );

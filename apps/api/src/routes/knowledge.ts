@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { getDb, touchNow } from "../db/index.js";
+import { getDb, readJson, touchNow } from "../db/index.js";
 import { asyncHandler } from "../lib/http.js";
 import { recordKnowledgeEvent, setKnowledgeKnown } from "../services/knowledge.js";
 
@@ -102,6 +102,24 @@ knowledgeRouter.get(
       isKnown: item.is_known === 1,
       lastSeenAt: item.last_seen_at
     }));
+    const eventSourceRows = db
+      .prepare(
+        `SELECT source,
+                item_type,
+                COALESCE(SUM(xp_delta), 0) AS xp,
+                COUNT(*) AS events
+         FROM knowledge_events
+         WHERE occurred_at >= ?
+         GROUP BY source, item_type
+         ORDER BY xp DESC, events DESC, source ASC
+         LIMIT 16`
+      )
+      .all(startIso) as Array<{
+        source: string;
+        item_type: string;
+        xp: number;
+        events: number;
+      }>;
 
     res.json({
       totals: {
@@ -110,7 +128,14 @@ knowledgeRouter.get(
         customVocabulary: customTotals
       },
       kanjiXpHistory,
-      topKanji
+      topKanji,
+      eventSourceBreakdown: eventSourceRows.map((row) => ({
+        source: row.source,
+        itemType: row.item_type,
+        xp: row.xp,
+        events: row.events
+      })),
+      kanjiNetwork: buildKanjiKnowledgeNetwork()
     });
   })
 );
@@ -221,6 +246,122 @@ function totalsFor(itemType: string) {
        WHERE item_type = ?`
     )
     .get(itemType) as { tracked: number; known: number; xp: number; seen: number };
+}
+
+function buildKanjiKnowledgeNetwork() {
+  const db = getDb();
+  const trackedRows = db
+    .prepare(
+      `SELECT uk.item_key,
+              uk.xp,
+              uk.seen_count,
+              uk.is_known,
+              k.meanings_json,
+              k.jlpt_level,
+              k.frequency_rank
+       FROM user_knowledge uk
+       LEFT JOIN kanji k ON k.literal = uk.item_key
+       WHERE uk.item_type = 'kanji'
+       ORDER BY uk.is_known DESC, uk.xp DESC, uk.seen_count DESC, uk.item_key ASC
+       LIMIT 36`
+    )
+    .all() as Array<{
+      item_key: string;
+      xp: number;
+      seen_count: number;
+      is_known: number;
+      meanings_json: string | null;
+      jlpt_level: number | null;
+      frequency_rank: number | null;
+    }>;
+
+  if (trackedRows.length === 0) {
+    return { nodes: [], links: [] };
+  }
+
+  const trackedKeys = trackedRows.map((row) => row.item_key);
+  const trackedSet = new Set(trackedKeys);
+  const nodes = new Map<string, {
+    literal: string;
+    status: "known" | "learning" | "related";
+    xp: number;
+    seenCount: number;
+    meanings: string[];
+    jlptLevel: number | null;
+    frequencyRank: number | null;
+  }>();
+
+  for (const row of trackedRows) {
+    nodes.set(row.item_key, {
+      literal: row.item_key,
+      status: row.is_known === 1 ? "known" : "learning",
+      xp: row.xp,
+      seenCount: row.seen_count,
+      meanings: readJson<string[]>(row.meanings_json, []),
+      jlptLevel: row.jlpt_level,
+      frequencyRank: row.frequency_rank
+    });
+  }
+
+  const placeholders = trackedKeys.map(() => "?").join(", ");
+  const relationRows = db
+    .prepare(
+      `SELECT kr.source_literal,
+              kr.target_literal,
+              kr.relation_type,
+              kr.score,
+              kr.reasons_json,
+              k.meanings_json AS target_meanings_json,
+              k.jlpt_level AS target_jlpt_level,
+              k.frequency_rank AS target_frequency_rank
+       FROM kanji_relations kr
+       LEFT JOIN kanji k ON k.literal = kr.target_literal
+       WHERE kr.source_literal IN (${placeholders})
+       ORDER BY CASE WHEN kr.target_literal IN (${placeholders}) THEN 0 ELSE 1 END,
+                kr.score DESC,
+                kr.target_literal ASC
+       LIMIT 90`
+    )
+    .all(...trackedKeys, ...trackedKeys) as Array<{
+      source_literal: string;
+      target_literal: string;
+      relation_type: string;
+      score: number;
+      reasons_json: string;
+      target_meanings_json: string | null;
+      target_jlpt_level: number | null;
+      target_frequency_rank: number | null;
+    }>;
+
+  const links = [];
+  for (const row of relationRows) {
+    if (!nodes.has(row.target_literal) && nodes.size < 64) {
+      nodes.set(row.target_literal, {
+        literal: row.target_literal,
+        status: trackedSet.has(row.target_literal) ? "learning" : "related",
+        xp: 0,
+        seenCount: 0,
+        meanings: readJson<string[]>(row.target_meanings_json, []),
+        jlptLevel: row.target_jlpt_level,
+        frequencyRank: row.target_frequency_rank
+      });
+    }
+
+    if (nodes.has(row.source_literal) && nodes.has(row.target_literal)) {
+      links.push({
+        source: row.source_literal,
+        target: row.target_literal,
+        relationType: row.relation_type,
+        score: row.score,
+        reasons: readJson<Array<{ type: string; detail: string; score: number }>>(row.reasons_json, [])
+      });
+    }
+  }
+
+  return {
+    nodes: Array.from(nodes.values()),
+    links
+  };
 }
 
 function mapKnowledgeRow(row: unknown) {

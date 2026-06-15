@@ -4,7 +4,10 @@ import type { KnowledgeSummary } from "./types";
 type HistoryPoint = KnowledgeSummary["kanjiXpHistory"][number];
 type Totals = KnowledgeSummary["totals"];
 type TopKanji = KnowledgeSummary["topKanji"];
+type SourceBreakdown = KnowledgeSummary["eventSourceBreakdown"];
+type KanjiNetwork = KnowledgeSummary["kanjiNetwork"];
 type CompositionKey = "kanji" | "words" | "customVocabulary";
+type ItemType = "kanji" | "word" | "custom_vocabulary";
 type CompositionEntry = {
   key: CompositionKey;
   label: string;
@@ -17,6 +20,12 @@ const typeColors: Record<CompositionKey, string> = {
   kanji: "#078f90",
   words: "#ffc857",
   customVocabulary: "#ff8b5f"
+};
+
+const itemTypeColors: Record<ItemType, string> = {
+  kanji: "#078f90",
+  word: "#ffc857",
+  custom_vocabulary: "#ff8b5f"
 };
 
 const parseDay = d3.utcParse("%Y-%m-%d");
@@ -238,4 +247,168 @@ export function TopKanjiBarChart({ items }: { items: TopKanji }) {
       </svg>
     </div>
   );
+}
+
+export function EventSourceBars({ items }: { items: SourceBreakdown }) {
+  if (items.length === 0) {
+    return (
+      <div className="analytics-empty compact">
+        <strong>No source activity yet</strong>
+        <span>XP source analytics appear as OCR, lookups, and tracker actions create events.</span>
+      </div>
+    );
+  }
+
+  const width = 640;
+  const rowHeight = 42;
+  const margin = { top: 18, right: 42, bottom: 20, left: 132 };
+  const height = margin.top + margin.bottom + rowHeight * items.length;
+  const maxXp = Math.max(1, ...items.map((item) => item.xp));
+  const x = d3.scaleLinear([0, maxXp], [margin.left, width - margin.right]).nice();
+
+  return (
+    <div className="analytics-chart source-bars" role="img" aria-label="Knowledge XP by event source">
+      <svg viewBox={`0 0 ${width} ${height}`}>
+        <rect className="analytics-frame" x="0" y="0" width={width} height={height} rx="12" />
+        {items.map((item, index) => {
+          const y = margin.top + index * rowHeight;
+          const barWidth = Math.max(7, x(item.xp) - margin.left);
+          return (
+            <g key={`${item.source}-${item.itemType}`}>
+              <text className="source-label" x={margin.left - 14} y={y + 25} textAnchor="end">
+                {sourceLabel(item.source)}
+              </text>
+              <rect
+                className="source-bar"
+                x={margin.left}
+                y={y + 8}
+                width={barWidth}
+                height="22"
+                rx="8"
+                fill={itemTypeColors[item.itemType]}
+              >
+                <title>{`${sourceLabel(item.source)} ${item.itemType}: ${item.xp} XP, ${item.events} events`}</title>
+              </rect>
+              <text className="source-value" x={margin.left + barWidth + 9} y={y + 24}>
+                {item.xp.toLocaleString()} XP · {item.events}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+export function KanjiKnowledgeNetwork({ network }: { network: KanjiNetwork }) {
+  if (network.nodes.length === 0) {
+    return (
+      <div className="analytics-empty">
+        <strong>No tracked kanji network yet</strong>
+        <span>Mark kanji as seen or known, then this map will connect them through radicals, readings, and meanings.</span>
+      </div>
+    );
+  }
+
+  const width = 920;
+  const height = 440;
+  const center = { x: width / 2, y: height / 2 };
+  const maxXp = Math.max(1, ...network.nodes.map((node) => node.xp));
+  const radius = d3.scaleSqrt([0, maxXp], [18, 42]);
+  const scoreWidth = d3.scaleLinear([0, Math.max(1, ...network.links.map((link) => link.score))], [1.4, 5.5]);
+  const nodes = network.nodes.map((node, index) => {
+    const angle = (index / Math.max(1, network.nodes.length)) * Math.PI * 2;
+    const ring = node.status === "related" ? 172 : 96;
+    return {
+      ...node,
+      x: center.x + Math.cos(angle) * ring,
+      y: center.y + Math.sin(angle) * ring
+    };
+  });
+  const nodeById = new Map(nodes.map((node) => [node.literal, node]));
+  const links = network.links
+    .map((link) => ({
+      ...link,
+      sourceNode: nodeById.get(link.source),
+      targetNode: nodeById.get(link.target)
+    }))
+    .filter((link): link is typeof link & { sourceNode: NonNullable<typeof link.sourceNode>; targetNode: NonNullable<typeof link.targetNode> } =>
+      Boolean(link.sourceNode && link.targetNode)
+    );
+  const simulationNodes = nodes.map((node) => ({ ...node }));
+  const simulationNodeById = new Map(simulationNodes.map((node) => [node.literal, node]));
+  const simulationLinks = links.map((link) => ({
+    source: simulationNodeById.get(link.source) ?? link.source,
+    target: simulationNodeById.get(link.target) ?? link.target,
+    score: link.score
+  }));
+
+  d3.forceSimulation(simulationNodes)
+    .force("link", d3.forceLink(simulationLinks).id((node) => (node as { literal: string }).literal).distance((link) => 142 - Math.min(80, Number((link as { score: number }).score))))
+    .force("charge", d3.forceManyBody().strength(-230))
+    .force("center", d3.forceCenter(center.x, center.y))
+    .force("collide", d3.forceCollide((node) => radius((node as { xp: number }).xp) + 10))
+    .stop()
+    .tick(180);
+
+  const positioned = simulationNodes.map((node) => ({
+    ...node,
+    x: clamp(Number(node.x), 58, width - 58),
+    y: clamp(Number(node.y), 58, height - 58)
+  }));
+  const positionedById = new Map(positioned.map((node) => [node.literal, node]));
+
+  return (
+    <div className="analytics-chart knowledge-network" role="img" aria-label="Kanji knowledge relationship network">
+      <svg viewBox={`0 0 ${width} ${height}`}>
+        <rect className="analytics-frame" x="0" y="0" width={width} height={height} rx="12" />
+        {links.map((link) => {
+          const source = positionedById.get(link.source);
+          const target = positionedById.get(link.target);
+          if (!source || !target) {
+            return null;
+          }
+          return (
+            <line
+              className="knowledge-network-link"
+              key={`${link.source}-${link.target}-${link.relationType}`}
+              x1={source.x}
+              y1={source.y}
+              x2={target.x}
+              y2={target.y}
+              strokeWidth={scoreWidth(link.score)}
+            >
+              <title>{`${link.source} -> ${link.target}: ${link.relationType}, score ${link.score}`}</title>
+            </line>
+          );
+        })}
+        {positioned.map((node) => (
+          <g className={`knowledge-network-node ${node.status}`} key={node.literal}>
+            <circle cx={node.x} cy={node.y} r={radius(node.xp)} />
+            <text x={node.x} y={node.y + 10} textAnchor="middle">
+              {node.literal}
+            </text>
+            <title>{`${node.literal}: ${node.status}, ${node.xp} XP${node.meanings.length > 0 ? `, ${node.meanings.slice(0, 3).join(", ")}` : ""}`}</title>
+          </g>
+        ))}
+      </svg>
+      <div className="network-legend">
+        <span><i className="known" /> Known</span>
+        <span><i className="learning" /> Learning</span>
+        <span><i className="related" /> Related</span>
+      </div>
+    </div>
+  );
+}
+
+function sourceLabel(source: string) {
+  return source
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ") || "Unknown";
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }

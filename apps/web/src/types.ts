@@ -225,6 +225,30 @@ export type KnowledgeSummary = {
     isKnown: boolean;
     lastSeenAt: string | null;
   }>;
+  eventSourceBreakdown: Array<{
+    source: string;
+    itemType: "kanji" | "word" | "custom_vocabulary";
+    xp: number;
+    events: number;
+  }>;
+  kanjiNetwork: {
+    nodes: Array<{
+      literal: string;
+      status: "known" | "learning" | "related";
+      xp: number;
+      seenCount: number;
+      meanings: string[];
+      jlptLevel: number | null;
+      frequencyRank: number | null;
+    }>;
+    links: Array<{
+      source: string;
+      target: string;
+      relationType: string;
+      score: number;
+      reasons: Array<{ type: string; detail: string; score: number }>;
+    }>;
+  };
 };
 
 export type LocalServiceLaunch = {
