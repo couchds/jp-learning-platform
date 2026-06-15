@@ -1059,54 +1059,161 @@ canvas {
   padding-right: 4px;
 }
 
-.xp-chart {
+.analytics-dashboard-grid {
   display: grid;
-  gap: 8px;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(0, 1.18fr);
+  gap: 16px;
+  align-items: stretch;
 }
 
-.xp-chart svg {
+.analytics-card {
+  display: grid;
+  gap: 14px;
+}
+
+.analytics-card-wide {
+  min-width: 0;
+}
+
+.analytics-chart,
+.analytics-card svg {
   width: 100%;
-  height: 260px;
-  border: 1px solid rgba(184, 228, 226, 0.78);
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(242, 255, 253, 0.98), rgba(255, 255, 255, 0.88));
+  min-width: 0;
 }
 
-.xp-chart line {
-  stroke: rgba(7, 61, 85, 0.28);
-  stroke-width: 2;
+.analytics-chart svg,
+.composition-card svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
-.xp-chart rect {
-  fill: rgba(255, 200, 87, 0.72);
+.analytics-frame {
+  fill: rgba(242, 255, 253, 0.76);
+  stroke: rgba(184, 228, 226, 0.86);
+  stroke-width: 1.4;
 }
 
-.xp-chart polyline {
+.analytics-grid-line {
+  stroke: rgba(7, 61, 85, 0.13);
+  stroke-width: 1.2;
+}
+
+.analytics-axis-label,
+.donut-caption,
+.kanji-xp-label {
+  fill: var(--muted-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.xp-daily-bar {
+  fill: rgba(255, 200, 87, 0.78);
+}
+
+.xp-area {
+  fill: url("#xp-area-gradient");
+}
+
+.xp-line {
   fill: none;
   stroke: var(--reef-teal);
-  stroke-width: 5;
   stroke-linecap: round;
   stroke-linejoin: round;
+  stroke-width: 5;
 }
 
-.xp-chart circle {
+.xp-point {
   fill: #ffffff;
   stroke: var(--reef-teal);
   stroke-width: 3;
 }
 
-.xp-chart text {
-  fill: var(--midnight-current);
-  font-size: 18px;
-  font-weight: 800;
+.xp-last-callout line {
+  stroke: rgba(4, 47, 67, 0.18);
+  stroke-dasharray: 6 8;
 }
 
-.chart-label-row {
-  display: flex;
-  justify-content: space-between;
+.xp-last-callout text,
+.donut-total,
+.kanji-rank-glyph {
+  fill: var(--midnight-current);
+  font-weight: 900;
+}
+
+.xp-last-callout text {
+  font-size: 20px;
+}
+
+.composition-card {
+  border: 1px solid rgba(184, 228, 226, 0.86);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 16px;
+}
+
+.composition-card h3 {
+  margin: 2px 0 0;
+  color: var(--ink);
+}
+
+.donut-total {
+  font-size: 28px;
+}
+
+.composition-legend {
+  display: grid;
+  gap: 9px;
+}
+
+.composition-legend div {
+  display: grid;
+  grid-template-columns: 12px minmax(70px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.composition-legend span {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.composition-legend strong {
+  color: var(--ink);
+}
+
+.composition-legend small {
   color: var(--muted-ink);
-  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.kanji-rank-glyph {
+  font-size: 30px;
+}
+
+.kanji-xp-bar {
+  fill: rgba(10, 166, 166, 0.76);
+}
+
+.kanji-xp-bar.known {
+  fill: rgba(255, 200, 87, 0.92);
+}
+
+.analytics-empty {
+  min-height: 220px;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  border: 1px dashed rgba(10, 166, 166, 0.32);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--muted-ink);
+  text-align: center;
+}
+
+.analytics-empty strong {
+  color: var(--ink);
 }
 
 .knowledge-list {
@@ -1773,6 +1880,7 @@ canvas {
   .capture-layout,
   .tracker-layout,
   .quiz-layout,
+  .analytics-dashboard-grid,
   .database-toolbar,
   .graph-layout {
     grid-template-columns: 1fr;

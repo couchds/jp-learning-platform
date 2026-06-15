@@ -17,6 +17,7 @@ This project follows semantic versioning.
 - Add sentence example storage/search and derived kanji similarity graph storage/API foundations.
 - Add a starter-data seed path for immediately populating the local database explorer with a small demo set.
 - Add independent database tab searches with quick filters for words, kanji, sentences, and graph lookups.
+- Replace the profile XP chart with D3-backed timeline, composition, and kanji-ranking visuals that handle empty and flat data.
 
 ## 0.6.0 - 2026-06-14
 

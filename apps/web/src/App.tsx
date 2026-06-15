@@ -32,6 +32,7 @@ import {
   X
 } from "lucide-react";
 import { api } from "./api";
+import { KanjiXpTimeline, KnowledgeCompositionDonut, TopKanjiBarChart } from "./KnowledgeVisuals";
 import type {
   DataSummary,
   Dashboard,
@@ -1183,7 +1184,7 @@ function ProfileView() {
           <span>last 30 days</span>
         </div>
         {summary.data ? (
-          <KanjiXpChart history={summary.data.kanjiXpHistory} />
+          <KanjiXpTimeline history={summary.data.kanjiXpHistory} />
         ) : summary.loading ? (
           <EmptyState title="Loading profile graph" detail="Reading local kanji experience history." />
         ) : (
@@ -1191,86 +1192,26 @@ function ProfileView() {
         )}
       </section>
 
-      <section className="panel">
-        <div className="panel-heading">
-          <h2>Most Experienced Kanji</h2>
-          <span>{summary.data?.topKanji.length ?? 0} shown</span>
-        </div>
-        {summary.data && summary.data.topKanji.length > 0 ? (
-          <div className="knowledge-list">
-            {summary.data.topKanji.map((item) => (
-              <div className="knowledge-row" key={item.itemKey}>
-                <strong>{item.itemKey}</strong>
-                <div>
-                  <span>{item.xp.toLocaleString()} XP</span>
-                  <small>{item.seenCount.toLocaleString()} sightings</small>
-                </div>
-                <span className={item.isKnown ? "status-pill ok" : "status-pill warn"}>
-                  {item.isKnown ? "known" : "learning"}
-                </span>
+      {summary.data ? (
+        <div className="analytics-dashboard-grid">
+          <KnowledgeCompositionDonut totals={summary.data.totals} />
+          <section className="panel analytics-card analytics-card-wide">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">Kanji ranking</span>
+                <h2>Most Experienced Kanji</h2>
               </div>
-            ))}
-          </div>
-        ) : summary.loading ? (
-          <EmptyState title="Loading kanji list" detail="Reading your most experienced kanji." />
-        ) : (
-          <EmptyState title="No kanji XP yet" detail="Use OCR, tracker entries, or lookup actions to start collecting XP." />
-        )}
-      </section>
+              <span>{summary.data.topKanji.length} shown</span>
+            </div>
+            <TopKanjiBarChart items={summary.data.topKanji} />
+          </section>
+        </div>
+      ) : summary.loading ? (
+        <section className="panel">
+          <EmptyState title="Loading analytics" detail="Reading your local knowledge profile." />
+        </section>
+      ) : null}
     </section>
-  );
-}
-
-function KanjiXpChart({ history }: { history: KnowledgeSummary["kanjiXpHistory"] }) {
-  const width = 760;
-  const height = 240;
-  const padding = 28;
-  const maxXp = Math.max(1, ...history.map((point) => point.cumulativeXp));
-  const xStep = history.length > 1 ? (width - padding * 2) / (history.length - 1) : 0;
-  const points = history.map((point, index) => {
-    const x = padding + index * xStep;
-    const y = height - padding - (point.cumulativeXp / maxXp) * (height - padding * 2);
-    return { ...point, x, y };
-  });
-  const polyline = points.map((point) => `${point.x},${point.y}`).join(" ");
-  const lastPoint = points.at(-1);
-
-  return (
-    <div className="xp-chart" role="img" aria-label="Kanji experience over the last 30 days">
-      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} />
-        <line x1={padding} y1={padding} x2={padding} y2={height - padding} />
-        {points.map((point) => (
-          <rect
-            key={point.date}
-            x={point.x - 4}
-            y={height - padding - Math.max(2, (point.xpGained / maxXp) * (height - padding * 2))}
-            width="8"
-            height={Math.max(2, (point.xpGained / maxXp) * (height - padding * 2))}
-            rx="3"
-          >
-            <title>{`${point.date}: +${point.xpGained} XP across ${point.events} events`}</title>
-          </rect>
-        ))}
-        <polyline points={polyline} />
-        {points.map((point, index) => (
-          index % 5 === 0 || index === points.length - 1 ? (
-            <circle key={point.date} cx={point.x} cy={point.y} r="4">
-              <title>{`${point.date}: ${point.cumulativeXp} total XP`}</title>
-            </circle>
-          ) : null
-        ))}
-        {lastPoint && (
-          <text x={width - padding} y={Math.max(18, lastPoint.y - 10)} textAnchor="end">
-            {lastPoint.cumulativeXp.toLocaleString()} XP
-          </text>
-        )}
-      </svg>
-      <div className="chart-label-row">
-        <span>{history[0]?.date ?? "start"}</span>
-        <span>{history.at(-1)?.date ?? "today"}</span>
-      </div>
-    </div>
   );
 }
 
