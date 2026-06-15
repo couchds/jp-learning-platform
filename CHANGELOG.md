@@ -16,6 +16,7 @@ This project follows semantic versioning.
 - Add local KANJIDIC2 and JMdict importer scripts for populating the Japanese data tables from downloaded dataset files.
 - Add sentence example storage/search and derived kanji similarity graph storage/API foundations.
 - Add a starter-data seed path for immediately populating the local database explorer with a small demo set.
+- Add independent database tab searches with quick filters for words, kanji, sentences, and graph lookups.
 
 ## 0.6.0 - 2026-06-14
 

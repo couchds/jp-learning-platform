@@ -431,9 +431,43 @@ function DashboardView({
 
 type DatabaseTab = "words" | "kanji" | "sentences" | "graph";
 
+const defaultDatabaseQueries: Record<DatabaseTab, string> = {
+  words: "",
+  kanji: "",
+  sentences: "",
+  graph: ""
+};
+
+const databaseQuickSearches: Record<DatabaseTab, Array<{ label: string; value: string }>> = {
+  words: [
+    { label: "All", value: "" },
+    { label: "日本", value: "日本" },
+    { label: "student", value: "student" },
+    { label: "book", value: "book" }
+  ],
+  kanji: [
+    { label: "All", value: "" },
+    { label: "日", value: "日" },
+    { label: "water", value: "water" },
+    { label: "study", value: "study" }
+  ],
+  sentences: [
+    { label: "All", value: "" },
+    { label: "日本", value: "日本" },
+    { label: "student", value: "student" },
+    { label: "Wednesday", value: "Wednesday" }
+  ],
+  graph: [
+    { label: "日", value: "日" },
+    { label: "本", value: "本" },
+    { label: "水", value: "水" },
+    { label: "学", value: "学" }
+  ]
+};
+
 function DatabaseView() {
   const [activeTab, setActiveTab] = useState<DatabaseTab>("words");
-  const [query, setQuery] = useState("");
+  const [queries, setQueries] = useState<Record<DatabaseTab, string>>(defaultDatabaseQueries);
   const [summary, setSummary] = useState<Loadable<DataSummary>>({
     data: null,
     loading: true,
@@ -462,6 +496,10 @@ function DatabaseView() {
   });
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importSubmitting, setImportSubmitting] = useState(false);
+  const query = queries[activeTab];
+  const setActiveQuery = (value: string) => {
+    setQueries((current) => ({ ...current, [activeTab]: value }));
+  };
 
   useEffect(() => {
     void loadSummary();
@@ -624,6 +662,7 @@ function DatabaseView() {
     sentences: "Search Japanese or English sentence examples",
     graph: "Enter one kanji to explore similar kanji"
   }[activeTab];
+  const quickSearches = databaseQuickSearches[activeTab];
 
   return (
     <section className="database-view">
@@ -683,15 +722,27 @@ function DatabaseView() {
             <Search size={18} />
             <input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => setActiveQuery(event.target.value)}
               placeholder={placeholder}
             />
             {query && (
-              <button type="button" aria-label="Clear database search" onClick={() => setQuery("")}>
+              <button type="button" aria-label="Clear database search" onClick={() => setActiveQuery("")}>
                 <X size={16} />
               </button>
             )}
           </div>
+        </div>
+        <div className="database-query-chips" aria-label={`${activeTab} quick searches`}>
+          {quickSearches.map((item) => (
+            <button
+              key={item.label}
+              className={query === item.value ? "database-query-chip active" : "database-query-chip"}
+              type="button"
+              onClick={() => setActiveQuery(item.value)}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
 
         {activeTab === "words" && <WordDatabaseResults state={words} />}

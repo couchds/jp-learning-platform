@@ -859,6 +859,30 @@ canvas {
   box-shadow: none;
 }
 
+.database-query-chips {
+  min-height: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.database-query-chip {
+  border: 1px solid rgba(184, 228, 226, 0.92);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--midnight-current);
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 7px 12px;
+}
+
+.database-query-chip.active,
+.database-query-chip:hover {
+  border-color: rgba(12, 132, 145, 0.48);
+  background: rgba(226, 249, 246, 0.94);
+  color: var(--reef-teal);
+}
+
 .database-result-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

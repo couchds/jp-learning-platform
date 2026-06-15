@@ -8,6 +8,7 @@
 - Treat importers as idempotent upserts where possible so the user can rerun them after downloading newer data.
 - Launch imports through persisted local jobs when initiated from the web app. Long-running imports should report stdout, stderr, status, and exit code through SQLite instead of blocking the HTTP request.
 - Provide a tiny starter dataset as a demo/onboarding path, separate from full public datasets. Starter data should be clearly labeled and safe to overwrite by rerunning the seed.
+- Keep database search state independent by tab and expose quick filters. Words, kanji, sentences, and graph exploration have different query shapes, so a single shared query makes cross-tab browsing feel noisy.
 
 ## Dictionary Explorer Direction
 
