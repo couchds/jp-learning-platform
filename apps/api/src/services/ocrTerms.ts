@@ -1,5 +1,6 @@
 import { getDb, touchNow } from "../db/index.js";
 import { type ResourceTermRow, mapResourceTerm } from "../db/mappers.js";
+import { recordKnowledgeEvent } from "./knowledge.js";
 
 export type SuggestedTerm = {
   termType: "kanji" | "word" | "phrase" | "kana" | "unknown";
@@ -86,13 +87,13 @@ export function upsertResourceTerms(resourceId: number, terms: SuggestedTerm[]) 
         now
       );
 
-      db.prepare(
-        `INSERT INTO user_knowledge (item_type, item_key, stage, last_seen_at, updated_at)
-         VALUES (?, ?, 0, ?, ?)
-         ON CONFLICT(item_type, item_key) DO UPDATE SET
-           last_seen_at = excluded.last_seen_at,
-           updated_at = excluded.updated_at`
-      ).run(knowledgeItemTypeFor(term.termType), term.text, now, now);
+      recordKnowledgeEvent(db, {
+        itemType: knowledgeItemTypeFor(term.termType),
+        itemKey: term.text,
+        xpDelta: term.frequency ?? 1,
+        source: term.source ?? "manual",
+        eventType: "seen"
+      });
     }
   });
 

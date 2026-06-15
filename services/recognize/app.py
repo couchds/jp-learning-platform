@@ -71,7 +71,7 @@ def convert_paths_to_strokes(paths: list[Any]) -> list[list[float]]:
 
 @app.get("/health")
 def health():
-    return jsonify({"status": "ok", "kanjidraw_available": KANJIDRAW_AVAILABLE})
+    return jsonify({"status": "ok", "service": "recognition", "kanjidraw_available": KANJIDRAW_AVAILABLE})
 
 
 @app.get("/info")

@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { Router } from "express";
 import { config } from "../config.js";
 import { asyncHandler, HttpError } from "../lib/http.js";
+import { resolvePythonRuntime } from "../services/pythonRuntime.js";
 
 export const desktopRouter = Router();
 
@@ -14,6 +15,7 @@ type OverlayLaunchTarget = {
   args: string[];
   label: "app-bundle" | "python";
   detail: string;
+  pythonLabel?: "venv" | "system";
 };
 
 desktopRouter.get(
@@ -27,9 +29,11 @@ desktopRouter.get(
       available: hasScript || hasAppBundle,
       overlay: "desktop-overlay",
       appBundle: hasAppBundle ? "installed" : "missing",
+      platform: process.platform,
       launchTarget: launchTarget.label,
       launchTargetDetail: launchTarget.detail,
-      python: fs.existsSync(config.overlayPythonPath) ? "venv" : "system",
+      python: launchTarget.pythonLabel ?? (fs.existsSync(config.overlayPythonPath) ? "venv" : "system"),
+      pythonDetail: launchTarget.label === "python" ? launchTarget.detail : undefined,
       apiUrl: `http://${config.host}:${config.port}`,
       webUrl
     });
@@ -56,11 +60,17 @@ desktopRouter.post(
     }
 
     const launchTarget = overlayLaunchTarget();
+    const python = resolvePythonRuntime(config.overlayPythonPath);
+    if (launchTarget.label === "python" && launchTarget.pythonLabel === "system" && !python.available) {
+      throw new HttpError(500, `Could not launch desktop overlay: Python was not found (${launchTarget.detail}).`);
+    }
+
     const webUrl = req.get("origin") ?? config.webAppUrl;
     const child = spawn(launchTarget.command, launchTarget.args, {
       cwd: config.repoRoot,
       detached: true,
       stdio: ["ignore", "ignore", "pipe"],
+      windowsHide: true,
       env: {
         ...process.env,
         YOMUNAMI_API_URL: `http://${config.host}:${config.port}`,
@@ -128,7 +138,8 @@ desktopRouter.post(
       overlay: "desktop-overlay",
       launchTarget: launchTarget.label,
       launchTargetDetail: launchTarget.detail,
-      python: fs.existsSync(config.overlayPythonPath) ? "venv" : "system",
+      python: launchTarget.pythonLabel ?? (fs.existsSync(config.overlayPythonPath) ? "venv" : "system"),
+      pythonDetail: launchTarget.label === "python" ? launchTarget.detail : undefined,
       webUrl
     });
   })
@@ -153,11 +164,12 @@ function overlayLaunchTarget(): OverlayLaunchTarget {
     };
   }
 
-  const pythonCommand = fs.existsSync(config.overlayPythonPath) ? config.overlayPythonPath : "python3";
+  const python = resolvePythonRuntime(config.overlayPythonPath);
   return {
-    command: pythonCommand,
-    args: [config.overlayScriptPath],
+    command: python.command,
+    args: [...python.argsPrefix, config.overlayScriptPath],
     label: "python",
-    detail: fs.existsSync(config.overlayPythonPath) ? config.overlayPythonPath : "python3"
+    detail: python.detail,
+    pythonLabel: python.label
   };
 }

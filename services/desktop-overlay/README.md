@@ -13,6 +13,16 @@ open "services/desktop-overlay/dist/Yomunami OCR Overlay.app"
 
 For development, run the Python script directly:
 
+PowerShell on Windows:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python overlay.py
+```
+
+macOS/Linux:
+
 ```bash
 cd services/desktop-overlay
 python -m venv .venv
@@ -23,7 +33,7 @@ python overlay.py
 
 The overlay talks to the local API at `http://127.0.0.1:3001` by default. The API can also launch it from the web app control panel through `POST /api/desktop/overlay/launch`.
 
-The browser launcher prefers `dist/Yomunami OCR Overlay.app` on macOS when it has been built. If the app is missing, it falls back to `services/desktop-overlay/.venv/bin/python`, then system `python3`.
+The browser launcher prefers `dist/Yomunami OCR Overlay.app` on macOS when it has been built. Otherwise it falls back to the platform virtual environment Python path (`.venv/Scripts/python.exe` on Windows, `.venv/bin/python` on macOS/Linux), then a system Python command.
 
 When launched from the browser, the API passes `YOMUNAMI_WEB_URL` so the overlay's Open Web App button returns to the active Vite port. Manual launches default to `http://127.0.0.1:5173`.
 

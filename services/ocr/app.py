@@ -349,6 +349,9 @@ def resolve_backend(backend: str) -> str:
     if backend != "auto":
         return backend
 
+    if sys.platform == "win32" and importlib.util.find_spec("manga_ocr") is not None:
+        return "manga-ocr"
+
     if importlib.util.find_spec("easyocr") is not None:
         return "easyocr"
 

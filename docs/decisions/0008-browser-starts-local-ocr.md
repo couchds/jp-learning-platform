@@ -10,7 +10,7 @@ The desktop overlay can run while the OCR service is offline, which makes captur
 
 ## Decision
 
-Add `POST /api/ocr/service/launch` to start `services/ocr/app.py` from the local API. The launcher prefers `services/ocr/.venv/bin/python` when present, falls back to `python3`, passes local host/port/origin environment, and reports immediate startup stderr when the service exits.
+Add `POST /api/ocr/service/launch` to start `services/ocr/app.py` from the local API. The launcher prefers the platform virtual environment Python path when present (`.venv/Scripts/python.exe` on Windows, `.venv/bin/python` on macOS/Linux), falls back to a system Python command, passes local host/port/origin environment, and reports immediate startup stderr when the service exits.
 
 The browser Capture and Runtime pages call this endpoint. The launcher does not install Python packages or model dependencies automatically.
 

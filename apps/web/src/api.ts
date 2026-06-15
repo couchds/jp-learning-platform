@@ -2,6 +2,8 @@ import type {
   Dashboard,
   DesktopOverlayStatus,
   Kanji,
+  KnowledgeItem,
+  KnowledgeSummary,
   LocalServiceLaunch,
   OcrResult,
   Page,
@@ -91,6 +93,28 @@ export const api = {
       body: JSON.stringify({})
     }),
   runtimeDoctor: () => request<RuntimeDoctor>("/api/runtime/doctor"),
+  knowledge: (query = "") => request<{ items: KnowledgeItem[] }>(`/api/knowledge${query}`),
+  knowledgeSummary: (days = 30) => request<KnowledgeSummary>(`/api/knowledge/summary?days=${days}`),
+  markKnowledgeSeen: (item: {
+    itemType: KnowledgeItem["itemType"];
+    itemKey: string;
+    xpDelta?: number;
+    source?: string;
+  }) =>
+    request<{ item: KnowledgeItem }>("/api/knowledge/seen", {
+      method: "POST",
+      body: JSON.stringify(item)
+    }),
+  markKnowledgeKnown: (item: {
+    itemType: KnowledgeItem["itemType"];
+    itemKey: string;
+    isKnown?: boolean;
+    source?: string;
+  }) =>
+    request<{ item: KnowledgeItem }>("/api/knowledge/known", {
+      method: "POST",
+      body: JSON.stringify(item)
+    }),
   resources: (query = "") => request<Page<Resource>>(`/api/resources${query}`),
   createResource: (resource: {
     name: string;
@@ -141,6 +165,7 @@ export const api = {
       launchTarget?: "app-bundle" | "python";
       launchTargetDetail?: string;
       python?: string;
+      pythonDetail?: string;
       webUrl?: string;
     }>(
       "/api/desktop/overlay/launch",

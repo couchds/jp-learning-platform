@@ -36,6 +36,8 @@ import type {
   Dashboard,
   DesktopOverlayStatus,
   Kanji,
+  KnowledgeItem,
+  KnowledgeSummary,
   OcrResult,
   QuizAnswerPayload,
   QuizQuestion,
@@ -52,6 +54,7 @@ import type {
 type View =
   | "home"
   | "dashboard"
+  | "profile"
   | "capture"
   | "runtime"
   | "resources"
@@ -82,6 +85,7 @@ const emptyDashboard: Dashboard = {
 const navItems: Array<{ id: View; label: string; icon: typeof Gauge }> = [
   { id: "home", label: "Home", icon: Home },
   { id: "dashboard", label: "Dashboard", icon: Gauge },
+  { id: "profile", label: "Profile", icon: Brain },
   { id: "capture", label: "Capture", icon: Crosshair },
   { id: "runtime", label: "Runtime", icon: Wrench },
   { id: "resources", label: "Resources", icon: Boxes },
@@ -190,6 +194,7 @@ export function App() {
         {view === "dashboard" && (
           <DashboardView state={dashboard} onRefresh={() => void refreshDashboard()} />
         )}
+        {view === "profile" && <ProfileView />}
         {view === "capture" && (
           <CaptureView
             onChange={() => void refreshDashboard()}
@@ -266,7 +271,7 @@ function HomeView({
       icon: Wrench,
       title: "Runtime doctor",
       detail:
-        "Check overlay dependencies, writable local storage, macOS permission hints, and companion service health from the browser."
+        "Check overlay dependencies, writable local storage, platform permission hints, and companion service health from the browser."
     },
     {
       icon: Shield,
@@ -417,6 +422,186 @@ function DashboardView({
   );
 }
 
+function ProfileView() {
+  const [summary, setSummary] = useState<Loadable<KnowledgeSummary>>({
+    data: null,
+    loading: true,
+    error: null
+  });
+
+  useEffect(() => {
+    void loadSummary();
+  }, []);
+
+  async function loadSummary() {
+    setSummary((current) => ({ ...current, loading: true, error: null }));
+    try {
+      setSummary({ data: await api.knowledgeSummary(30), loading: false, error: null });
+    } catch (requestError) {
+      setSummary({
+        data: null,
+        loading: false,
+        error: requestError instanceof Error ? requestError.message : "Could not load knowledge profile"
+      });
+    }
+  }
+
+  const totals = summary.data?.totals;
+  const profileStats = [
+    {
+      label: "Known kanji",
+      value: totals?.kanji.known ?? 0,
+      detail: `${totals?.kanji.tracked ?? 0} tracked`,
+      icon: Brain
+    },
+    {
+      label: "Kanji XP",
+      value: totals?.kanji.xp ?? 0,
+      detail: `${totals?.kanji.seen ?? 0} sightings`,
+      icon: Trophy
+    },
+    {
+      label: "Known words",
+      value: totals?.words.known ?? 0,
+      detail: `${totals?.words.tracked ?? 0} tracked`,
+      icon: Sparkles
+    },
+    {
+      label: "Custom terms",
+      value: totals?.customVocabulary.tracked ?? 0,
+      detail: `${totals?.customVocabulary.xp ?? 0} XP`,
+      icon: ClipboardList
+    }
+  ] as const;
+
+  return (
+    <section className="profile-view">
+      <div className="status-band">
+        <div>
+          <span className="eyebrow">Knowledge profile</span>
+          <h2>{summary.loading ? "Loading study profile" : "Kanji and word tracking"}</h2>
+          <p className="helper-text">
+            Kanji and words gain experience when they appear in OCR captures, tracker entries, or lookup actions.
+          </p>
+          {summary.error && <p className="error-text">{summary.error}</p>}
+        </div>
+        <button className="primary-button" type="button" onClick={() => void loadSummary()}>
+          <Activity size={17} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="metrics-grid">
+        {profileStats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <article className="metric-card" key={stat.label}>
+              <Icon size={18} />
+              <strong>{stat.value.toLocaleString()}</strong>
+              <span>{stat.label}</span>
+              <small>{stat.detail}</small>
+            </article>
+          );
+        })}
+      </div>
+
+      <section className="panel">
+        <div className="panel-heading">
+          <h2>Kanji XP Over Time</h2>
+          <span>last 30 days</span>
+        </div>
+        {summary.data ? (
+          <KanjiXpChart history={summary.data.kanjiXpHistory} />
+        ) : summary.loading ? (
+          <EmptyState title="Loading profile graph" detail="Reading local kanji experience history." />
+        ) : (
+          <EmptyState title="No profile data yet" detail="Capture or mark kanji as seen to build a history graph." />
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-heading">
+          <h2>Most Experienced Kanji</h2>
+          <span>{summary.data?.topKanji.length ?? 0} shown</span>
+        </div>
+        {summary.data && summary.data.topKanji.length > 0 ? (
+          <div className="knowledge-list">
+            {summary.data.topKanji.map((item) => (
+              <div className="knowledge-row" key={item.itemKey}>
+                <strong>{item.itemKey}</strong>
+                <div>
+                  <span>{item.xp.toLocaleString()} XP</span>
+                  <small>{item.seenCount.toLocaleString()} sightings</small>
+                </div>
+                <span className={item.isKnown ? "status-pill ok" : "status-pill warn"}>
+                  {item.isKnown ? "known" : "learning"}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : summary.loading ? (
+          <EmptyState title="Loading kanji list" detail="Reading your most experienced kanji." />
+        ) : (
+          <EmptyState title="No kanji XP yet" detail="Use OCR, tracker entries, or lookup actions to start collecting XP." />
+        )}
+      </section>
+    </section>
+  );
+}
+
+function KanjiXpChart({ history }: { history: KnowledgeSummary["kanjiXpHistory"] }) {
+  const width = 760;
+  const height = 240;
+  const padding = 28;
+  const maxXp = Math.max(1, ...history.map((point) => point.cumulativeXp));
+  const xStep = history.length > 1 ? (width - padding * 2) / (history.length - 1) : 0;
+  const points = history.map((point, index) => {
+    const x = padding + index * xStep;
+    const y = height - padding - (point.cumulativeXp / maxXp) * (height - padding * 2);
+    return { ...point, x, y };
+  });
+  const polyline = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const lastPoint = points.at(-1);
+
+  return (
+    <div className="xp-chart" role="img" aria-label="Kanji experience over the last 30 days">
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} />
+        <line x1={padding} y1={padding} x2={padding} y2={height - padding} />
+        {points.map((point) => (
+          <rect
+            key={point.date}
+            x={point.x - 4}
+            y={height - padding - Math.max(2, (point.xpGained / maxXp) * (height - padding * 2))}
+            width="8"
+            height={Math.max(2, (point.xpGained / maxXp) * (height - padding * 2))}
+            rx="3"
+          >
+            <title>{`${point.date}: +${point.xpGained} XP across ${point.events} events`}</title>
+          </rect>
+        ))}
+        <polyline points={polyline} />
+        {points.map((point, index) => (
+          index % 5 === 0 || index === points.length - 1 ? (
+            <circle key={point.date} cx={point.x} cy={point.y} r="4">
+              <title>{`${point.date}: ${point.cumulativeXp} total XP`}</title>
+            </circle>
+          ) : null
+        ))}
+        {lastPoint && (
+          <text x={width - padding} y={Math.max(18, lastPoint.y - 10)} textAnchor="end">
+            {lastPoint.cumulativeXp.toLocaleString()} XP
+          </text>
+        )}
+      </svg>
+      <div className="chart-label-row">
+        <span>{history[0]?.date ?? "start"}</span>
+        <span>{history.at(-1)?.date ?? "today"}</span>
+      </div>
+    </div>
+  );
+}
+
 function RuntimeView({ onServicesChange }: { onServicesChange: () => void }) {
   const [doctor, setDoctor] = useState<Loadable<RuntimeDoctor>>({
     data: null,
@@ -474,7 +659,7 @@ function RuntimeView({ onServicesChange }: { onServicesChange: () => void }) {
     },
     warn: {
       title: "Runtime needs attention",
-      detail: "One or more optional local services or macOS permissions may need setup."
+      detail: "One or more optional local services or platform permissions may need setup."
     },
     error: {
       title: "Runtime blocked",
@@ -706,10 +891,11 @@ function CaptureView({
       }.`;
   const overlayRuntime = overlay.data?.launchTarget === "app-bundle"
     ? "Yomunami app"
-    : overlay.data?.python ?? "python";
+    : overlay.data?.pythonDetail ?? overlay.data?.python ?? "python";
   const overlayPermissionTarget = overlay.data?.launchTarget === "app-bundle"
     ? "Yomunami OCR Overlay.app"
     : "the terminal or Python executable that starts the overlay";
+  const needsMacPermissions = overlay.data?.platform === "darwin";
 
   return (
     <section className="capture-layout">
@@ -759,9 +945,11 @@ function CaptureView({
           <span>Default hotkey</span>
           <strong>ctrl+shift+o</strong>
         </div>
-        <p className="helper-text">
-          On macOS, grant Screen Recording and Accessibility permissions to {overlayPermissionTarget}.
-        </p>
+        {needsMacPermissions && (
+          <p className="helper-text">
+            On macOS, grant Screen Recording and Accessibility permissions to {overlayPermissionTarget}.
+          </p>
+        )}
       </div>
 
       <div className="panel ocr-service-panel">
@@ -1491,11 +1679,14 @@ function LookupView() {
   const [kanji, setKanji] = useState<Kanji[]>([]);
   const [words, setWords] = useState<Word[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [knowledgeMessage, setKnowledgeMessage] = useState<string | null>(null);
+  const [knowledgeBusy, setKnowledgeBusy] = useState<string | null>(null);
 
   useEffect(() => {
     if (!query.trim()) {
       setKanji([]);
       setWords([]);
+      setKnowledgeMessage(null);
       return;
     }
 
@@ -1517,6 +1708,31 @@ function LookupView() {
     }
   }
 
+  async function trackKnowledge(
+    itemType: KnowledgeItem["itemType"],
+    itemKey: string,
+    action: "seen" | "known"
+  ) {
+    const busyKey = `${itemType}:${itemKey}:${action}`;
+    setKnowledgeBusy(busyKey);
+    setKnowledgeMessage(null);
+    setError(null);
+
+    try {
+      if (action === "seen") {
+        await api.markKnowledgeSeen({ itemType, itemKey, xpDelta: 1, source: "lookup" });
+        setKnowledgeMessage(`${itemKey} gained 1 XP.`);
+      } else {
+        await api.markKnowledgeKnown({ itemType, itemKey, isKnown: true, source: "lookup" });
+        setKnowledgeMessage(`${itemKey} marked as known.`);
+      }
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not update knowledge");
+    } finally {
+      setKnowledgeBusy(null);
+    }
+  }
+
   return (
     <section className="view-grid">
       <div className="searchbar">
@@ -1533,6 +1749,7 @@ function LookupView() {
         )}
       </div>
       {error && <p className="error-text">{error}</p>}
+      {knowledgeMessage && <p className="success-text">{knowledgeMessage}</p>}
       <div className="dual-panels">
         <section className="panel">
           <div className="panel-heading">
@@ -1547,6 +1764,26 @@ function LookupView() {
                 <small>
                   JLPT {item.jlptLevel ?? "-"} · {item.strokeCount ?? "-"} strokes
                 </small>
+                <div className="knowledge-actions">
+                  <button
+                    className="mini-button"
+                    type="button"
+                    disabled={knowledgeBusy === `kanji:${item.literal}:seen`}
+                    onClick={() => void trackKnowledge("kanji", item.literal, "seen")}
+                  >
+                    <Plus size={14} />
+                    XP
+                  </button>
+                  <button
+                    className="mini-button"
+                    type="button"
+                    disabled={knowledgeBusy === `kanji:${item.literal}:known`}
+                    onClick={() => void trackKnowledge("kanji", item.literal, "known")}
+                  >
+                    <CheckCircle2 size={14} />
+                    Known
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -1558,20 +1795,47 @@ function LookupView() {
             <span>{words.length}</span>
           </div>
           <div className="word-list">
-            {words.map((word) => (
-              <article className="word-card" key={word.id}>
-                <div>
-                  <strong>{word.kanjiForms[0] ?? word.readings[0] ?? word.entryId}</strong>
-                  <span>{word.readings.join(" · ")}</span>
-                </div>
-                <p>{word.glosses.slice(0, 3).join("; ")}</p>
-              </article>
-            ))}
+            {words.map((word) => {
+              const itemKey = wordKnowledgeKey(word);
+              return (
+                <article className="word-card" key={word.id}>
+                  <div>
+                    <strong>{itemKey}</strong>
+                    <span>{word.readings.join(" · ")}</span>
+                  </div>
+                  <p>{word.glosses.slice(0, 3).join("; ")}</p>
+                  <div className="knowledge-actions">
+                    <button
+                      className="mini-button"
+                      type="button"
+                      disabled={knowledgeBusy === `word:${itemKey}:seen`}
+                      onClick={() => void trackKnowledge("word", itemKey, "seen")}
+                    >
+                      <Plus size={14} />
+                      XP
+                    </button>
+                    <button
+                      className="mini-button"
+                      type="button"
+                      disabled={knowledgeBusy === `word:${itemKey}:known`}
+                      onClick={() => void trackKnowledge("word", itemKey, "known")}
+                    >
+                      <CheckCircle2 size={14} />
+                      Known
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </section>
       </div>
     </section>
   );
+}
+
+function wordKnowledgeKey(word: Word) {
+  return word.kanjiForms[0] ?? word.readings[0] ?? String(word.entryId);
 }
 
 function OcrView() {

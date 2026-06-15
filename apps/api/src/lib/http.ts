@@ -41,10 +41,27 @@ export function errorHandler(
     return;
   }
 
+  const clientErrorStatus = httpClientErrorStatus(error);
+  if (clientErrorStatus) {
+    res.status(clientErrorStatus).json({
+      error: "Invalid request body"
+    });
+    return;
+  }
+
   console.error(error);
   res.status(500).json({
     error: "Internal server error"
   });
+}
+
+function httpClientErrorStatus(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const status = "status" in error ? Number(error.status) : Number((error as { statusCode?: unknown }).statusCode);
+  return Number.isInteger(status) && status >= 400 && status < 500 ? status : null;
 }
 
 export function parseLimitOffset(query: Request["query"]) {

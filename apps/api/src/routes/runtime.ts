@@ -5,6 +5,7 @@ import path from "node:path";
 import { Router } from "express";
 import { config } from "../config.js";
 import { asyncHandler } from "../lib/http.js";
+import { resolvePythonRuntime, venvSetupHint } from "../services/pythonRuntime.js";
 
 type DoctorStatus = "ok" | "warn" | "error";
 
@@ -22,7 +23,7 @@ runtimeRouter.get(
   "/doctor",
   asyncHandler(async (_req, res) => {
     const checks: DoctorCheck[] = [
-      overlayAppBundleCheck(),
+      ...(process.platform === "darwin" ? [overlayAppBundleCheck()] : []),
       overlayScriptCheck(),
       overlayPythonCheck(),
       overlayImportCheck(),
@@ -70,15 +71,21 @@ function overlayScriptCheck(): DoctorCheck {
 
 function overlayPythonCheck(): DoctorCheck {
   const hasAppBundle = fs.existsSync(config.overlayAppExecutablePath);
-  const hasVenv = fs.existsSync(config.overlayPythonPath);
+  const python = resolvePythonRuntime(config.overlayPythonPath);
   return {
     id: "overlay-python",
     label: "Overlay Python runtime",
-    status: hasVenv || hasAppBundle ? "ok" : "warn",
+    status: python.available || hasAppBundle ? "ok" : "warn",
     detail: hasAppBundle
       ? "Packaged app bundle is available"
-      : hasVenv ? "Using services/desktop-overlay/.venv" : "Falling back to system python3",
-    action: hasVenv || hasAppBundle ? undefined : "Create the overlay venv and install services/desktop-overlay/requirements.txt."
+      : python.label === "venv"
+        ? "Using services/desktop-overlay/.venv"
+        : python.available
+          ? `Using system Python fallback: ${python.detail}`
+          : `System Python fallback was not found: ${python.detail}`,
+    action: python.available || hasAppBundle
+      ? undefined
+      : `Install Python 3 or create the overlay venv. ${venvSetupHint("services/desktop-overlay")}`
   };
 }
 
@@ -92,11 +99,21 @@ function overlayImportCheck(): DoctorCheck {
     };
   }
 
-  const python = fs.existsSync(config.overlayPythonPath) ? config.overlayPythonPath : "python3";
+  const python = resolvePythonRuntime(config.overlayPythonPath);
+  if (!python.available) {
+    return {
+      id: "overlay-imports",
+      label: "Overlay Python packages",
+      status: "error",
+      detail: `Python was not found (${python.detail})`,
+      action: `Install Python 3 or create the overlay venv. ${venvSetupHint("services/desktop-overlay")}`
+    };
+  }
+
   const result = spawnSync(
-    python,
-    ["-c", "import requests, tkinter, PIL, pynput, mss; print('ok')"],
-    { encoding: "utf8", timeout: 7000 }
+    python.command,
+    [...python.argsPrefix, "-c", "import requests, tkinter, PIL, pynput, mss; print('ok')"],
+    { encoding: "utf8", timeout: 7000, windowsHide: true }
   );
 
   if (result.status === 0) {
@@ -113,7 +130,7 @@ function overlayImportCheck(): DoctorCheck {
     label: "Overlay Python packages",
     status: "error",
     detail: summarizeProcessFailure(result.stderr || result.stdout || result.error?.message || "Import check failed"),
-    action: "Run: cd services/desktop-overlay && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+    action: venvSetupHint("services/desktop-overlay")
   };
 }
 
@@ -192,29 +209,35 @@ function macPermissionHint(): DoctorCheck {
   const permissionTarget = fs.existsSync(config.overlayAppExecutablePath)
     ? "Yomunami OCR Overlay.app"
     : "Terminal or Python";
+  if (process.platform !== "darwin") {
+    return {
+      id: "screen-permissions",
+      label: "Screen capture permissions",
+      status: "ok",
+      detail:
+        process.platform === "win32"
+          ? "Windows does not require macOS Screen Recording permissions for the overlay."
+          : "No macOS Screen Recording permissions needed on this platform."
+    };
+  }
+
   return {
-    id: "mac-permissions",
+    id: "screen-permissions",
     label: "macOS screen permissions",
-    status: process.platform === "darwin" ? "warn" : "ok",
-    detail:
-      process.platform === "darwin"
-        ? `macOS may require Accessibility and Screen Recording permissions for ${permissionTarget}.`
-        : "No macOS permissions needed on this platform.",
-    action:
-      process.platform === "darwin"
-        ? `Open System Settings > Privacy & Security and allow Accessibility and Screen Recording for ${permissionTarget}.`
-        : undefined
+    status: "warn",
+    detail: `macOS may require Accessibility and Screen Recording permissions for ${permissionTarget}.`,
+    action: `Open System Settings > Privacy & Security and allow Accessibility and Screen Recording for ${permissionTarget}.`
   };
 }
 
 function serviceStartHint(service: string) {
   if (service === "ocr") {
-    return "Start services/ocr/app.py after installing its requirements.";
+    return `${venvSetupHint("services/ocr")}. Then start services/ocr/app.py.`;
   }
   if (service === "recognition") {
-    return "Start services/recognize/app.py after installing its requirements.";
+    return `${venvSetupHint("services/recognize")}. Then start services/recognize/app.py.`;
   }
-  return "Start services/speech-model/api.py after installing its requirements.";
+  return `${venvSetupHint("services/speech-model")}. Then start services/speech-model/api.py.`;
 }
 
 function serviceLabel(service: string) {

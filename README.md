@@ -9,12 +9,12 @@ This repository is intentionally starting fresh. The previous app's public-facin
 - **Local-first:** SQLite and local file storage are the default persistence layer.
 - **No bundled secrets:** `.env` files, API keys, service account material, trained models, uploads, and local databases are ignored.
 - **Composable services:** the web app, API, OCR service, kanji handwriting recognition service, and speech model service are separate local processes.
-- **Semver:** the current local product version is `0.6.0`; user-facing or API-contract changes should update the root package version and changelog.
+- **Semver:** the current local product version is `0.6.1`; user-facing or API-contract changes should update the root package version and changelog.
 
 ## Product Features
 
 - Browser control center with a landing page, local service status, OCR service startup, and desktop overlay launch controls.
-- Runtime Doctor checks for overlay dependencies, local writable paths, macOS permission hints, and companion service health.
+- Runtime Doctor checks for overlay dependencies, local writable paths, platform permission hints, and companion service health.
 - Any-window OCR workflow through the desktop companion for games, browser tabs, emulators, videos, and documents.
 - Resource library for manga, games, books, anime, websites, podcasts, and other study sources.
 - Resource term tracker for OCR-derived or manually added kanji, words, kana, and phrases.
@@ -68,9 +68,45 @@ Python services will each have their own virtual environment and `requirements.t
 
 The browser Capture page can start the OCR service after the OCR virtual environment and OCR engine package are installed. It intentionally does not run `pip install` automatically.
 
-The OCR service defaults to `OCR_BACKEND=auto`. In auto mode it prefers EasyOCR when installed because EasyOCR returns bounding boxes for overlay highlights, then falls back to MangaOCR for text-only recognition.
+The OCR service defaults to `OCR_BACKEND=auto`. In auto mode it prefers MangaOCR on Windows for reliable local startup, and prefers EasyOCR on macOS/Linux when installed because EasyOCR returns bounding boxes for overlay highlights. Set `OCR_BACKEND=easyocr` explicitly when you want EasyOCR on Windows.
 
-Run optional companion services in separate terminals:
+Run optional companion services in separate terminals.
+
+PowerShell on Windows:
+
+```powershell
+Push-Location services/desktop-overlay
+py -3 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python overlay.py
+Pop-Location
+```
+
+```powershell
+Push-Location services/recognize
+py -3 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python app.py
+Pop-Location
+```
+
+```powershell
+Push-Location services/ocr
+py -3 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python app.py
+Pop-Location
+```
+
+```powershell
+Push-Location services/speech-model
+py -3 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python api.py
+Pop-Location
+```
+
+macOS/Linux:
 
 ```bash
 cd services/desktop-overlay
@@ -119,7 +155,16 @@ The app is designed to import local copies of public Japanese learning datasets 
 - JMdict for dictionary entries.
 - User-created resources, notes, OCR captures, and audio recordings in local storage.
 
-Downloaded dictionary files should stay outside git. Import scripts will document their expected file paths when they are added.
+Downloaded dictionary files should stay outside git.
+
+Start the API once before importing so SQLite migrations create `data/local/app.sqlite`, then run:
+
+```powershell
+py -3 scripts/import_kanjidic2.py C:\path\to\kanjidic2.xml
+py -3 scripts/import_jmdict.py C:\path\to\JMdict_e.xml
+```
+
+Both importers default to `data/local/app.sqlite`. Pass `--db C:\path\to\app.sqlite` to target a different local database. For a quick JMdict smoke test, add `--limit 1000`.
 
 ## Security And Privacy
 
@@ -136,6 +181,10 @@ Downloaded dictionary files should stay outside git. Import scripts will documen
 - `GET /api/dashboard`
 - `GET /api/kanji`
 - `GET /api/kanji/:idOrLiteral`
+- `GET|PUT /api/knowledge`
+- `GET /api/knowledge/summary`
+- `POST /api/knowledge/seen`
+- `POST /api/knowledge/known`
 - `GET /api/words`
 - `GET /api/words/:id`
 - `GET|POST /api/resources`
@@ -186,7 +235,7 @@ The desktop overlay is the intended game/browser workflow:
 
 macOS may require Screen Recording and Accessibility permissions. Prefer the packaged `Yomunami OCR Overlay.app` so the permission prompt names Yomunami instead of a generic Python runtime.
 
-The browser launcher prefers the packaged macOS app when it exists, then falls back to `services/desktop-overlay/.venv/bin/python`, then system `python3`.
+The browser launcher prefers the packaged macOS app when it exists on macOS. Otherwise it falls back to the platform virtual environment Python path, then a system Python command. On Windows the default virtual environment path is `services/desktop-overlay/.venv/Scripts/python.exe`, with `py -3` and `python` as system fallbacks. On macOS/Linux it uses `services/desktop-overlay/.venv/bin/python`, then `python3` and `python`.
 
 ## Versioning
 

@@ -8,6 +8,7 @@ import { asyncHandler, HttpError } from "../lib/http.js";
 import { imageUpload, relativeUploadPath } from "../services/localUpload.js";
 import { termsFromOcrElements, upsertResourceTerms } from "../services/ocrTerms.js";
 import { postFile } from "../services/serviceProxy.js";
+import { resolvePythonRuntime } from "../services/pythonRuntime.js";
 
 type OcrResponse = {
   success?: boolean;
@@ -61,12 +62,14 @@ ocrRouter.post(
 
     const currentHealth = await getOcrHealth();
     if (currentHealth.available || (currentHealth.reachable && currentHealth.expectedService)) {
+      const python = resolvePythonRuntime(config.ocrPythonPath);
       res.status(currentHealth.available ? 200 : 202).json({
         launched: false,
         alreadyRunning: true,
         service: "ocr",
         url: config.ocrServiceUrl,
-        python: fsSync.existsSync(config.ocrPythonPath) ? "venv" : "system",
+        python: python.label,
+        pythonDetail: python.detail,
         health: currentHealth.payload,
         available: currentHealth.available,
         error: currentHealth.available ? undefined : currentHealth.reason
@@ -87,15 +90,22 @@ ocrRouter.post(
     }
 
     const launchTarget = ocrLaunchTarget();
-    const pythonCommand = fsSync.existsSync(config.ocrPythonPath) ? config.ocrPythonPath : "python3";
-    const child = spawn(pythonCommand, [config.ocrScriptPath], {
+    const python = resolvePythonRuntime(config.ocrPythonPath);
+    if (!python.available) {
+      throw new HttpError(500, `Could not launch OCR service: Python was not found (${python.detail}).`);
+    }
+
+    const child = spawn(python.command, [...python.argsPrefix, config.ocrScriptPath], {
       cwd: config.ocrServiceRoot,
       detached: true,
       stdio: ["ignore", "ignore", "pipe"],
+      windowsHide: true,
       env: {
         ...process.env,
         OCR_HOST: launchTarget.hostname,
         OCR_PORT: launchTarget.port,
+        OCR_BACKEND: process.env.OCR_BACKEND ?? (process.platform === "win32" ? "manga-ocr" : "auto"),
+        HF_HUB_DISABLE_XET: process.env.HF_HUB_DISABLE_XET ?? (process.platform === "win32" ? "1" : undefined),
         LOCAL_ALLOWED_ORIGINS: config.allowedOrigins.join(",")
       }
     });
@@ -160,7 +170,8 @@ ocrRouter.post(
       pid: child.pid,
       service: "ocr",
       url: config.ocrServiceUrl,
-      python: fsSync.existsSync(config.ocrPythonPath) ? "venv" : "system"
+      python: python.label,
+      pythonDetail: python.detail
     });
   })
 );

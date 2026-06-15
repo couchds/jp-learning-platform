@@ -4,6 +4,17 @@ All notable changes to this project will be documented here.
 
 This project follows semantic versioning.
 
+## 0.6.1 - 2026-06-15
+
+- Add platform-aware Python runtime detection for Windows, macOS, and Linux service launchers.
+- Make Runtime Doctor and overlay status copy avoid macOS-only guidance on Windows.
+- Refresh the web control center with an oceanic visual theme and remove motion effects from the final UI.
+- Document Windows PowerShell setup for Python companion services.
+- Prefer MangaOCR for the OCR service auto backend on Windows and align companion service health payloads with Runtime Doctor.
+- Add kanji/word knowledge XP tracking, known-state updates, and a profile graph for kanji experience over time.
+- Track OCR/resource and lookup sightings into knowledge history.
+- Add local KANJIDIC2 and JMdict importer scripts for populating the Japanese data tables from downloaded dataset files.
+
 ## 0.6.0 - 2026-06-14
 
 - Add a PyInstaller build path for `Yomunami OCR Overlay.app` on macOS.

@@ -235,6 +235,32 @@ const migrations: Array<{ id: number; name: string; sql: string }> = [
 
       CREATE INDEX IF NOT EXISTS idx_quiz_answers_session_id ON quiz_answers(session_id);
     `
+  },
+  {
+    id: 3,
+    name: "knowledge_xp_history",
+    sql: `
+      ALTER TABLE user_knowledge ADD COLUMN xp INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE user_knowledge ADD COLUMN seen_count INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE user_knowledge ADD COLUMN is_known INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE user_knowledge ADD COLUMN known_at TEXT;
+
+      CREATE INDEX IF NOT EXISTS idx_user_knowledge_type_known ON user_knowledge(item_type, is_known);
+      CREATE INDEX IF NOT EXISTS idx_user_knowledge_xp ON user_knowledge(item_type, xp);
+
+      CREATE TABLE IF NOT EXISTS knowledge_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_type TEXT NOT NULL,
+        item_key TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        xp_delta INTEGER NOT NULL DEFAULT 0,
+        source TEXT NOT NULL DEFAULT 'manual',
+        occurred_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_knowledge_events_item ON knowledge_events(item_type, item_key);
+      CREATE INDEX IF NOT EXISTS idx_knowledge_events_occurred ON knowledge_events(occurred_at);
+    `
   }
 ];
 

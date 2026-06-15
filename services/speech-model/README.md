@@ -4,6 +4,16 @@ Local keyword-spotting model for pronunciation practice. This carries forward th
 
 ## Setup
 
+PowerShell on Windows:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python api.py
+```
+
+macOS/Linux:
+
 ```bash
 cd services/speech-model
 python -m venv .venv

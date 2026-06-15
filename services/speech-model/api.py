@@ -99,6 +99,7 @@ def health():
     return jsonify(
         {
             "status": "ok",
+            "service": "speech",
             "model_loaded": PREDICTOR is not None,
             "is_training": TRAINING_STATUS["is_training"],
             "local_only": True,

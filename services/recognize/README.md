@@ -4,6 +4,16 @@ Flask service for recognizing hand-drawn kanji stroke paths from the web app.
 
 ## Setup
 
+PowerShell on Windows:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python app.py
+```
+
+macOS/Linux:
+
 ```bash
 cd services/recognize
 python -m venv .venv

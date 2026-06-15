@@ -112,6 +112,44 @@ export type ServiceHealth = {
   error?: string;
 };
 
+export type KnowledgeItem = {
+  id: number;
+  itemType: "kanji" | "word" | "custom_vocabulary";
+  itemKey: string;
+  stage: number;
+  lastSeenAt: string | null;
+  nextReviewAt: string | null;
+  lapses: number;
+  xp: number;
+  seenCount: number;
+  isKnown: boolean;
+  knownAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeSummary = {
+  totals: {
+    kanji: { tracked: number; known: number; xp: number; seen: number };
+    words: { tracked: number; known: number; xp: number; seen: number };
+    customVocabulary: { tracked: number; known: number; xp: number; seen: number };
+  };
+  kanjiXpHistory: Array<{
+    date: string;
+    xpGained: number;
+    events: number;
+    cumulativeXp: number;
+  }>;
+  topKanji: Array<{
+    itemKey: string;
+    xp: number;
+    seenCount: number;
+    isKnown: boolean;
+    lastSeenAt: string | null;
+  }>;
+};
+
 export type LocalServiceLaunch = {
   launched: boolean;
   alreadyRunning?: boolean;
@@ -120,6 +158,7 @@ export type LocalServiceLaunch = {
   service: string;
   url: string;
   python?: "venv" | "system";
+  pythonDetail?: string;
   available?: boolean;
   health?: unknown;
   error?: string;
@@ -176,9 +215,11 @@ export type DesktopOverlayStatus = {
   available: boolean;
   overlay: string;
   appBundle?: "installed" | "missing";
+  platform?: string;
   launchTarget?: "app-bundle" | "python";
   launchTargetDetail?: string;
   python?: "venv" | "system";
+  pythonDetail?: string;
   apiUrl: string;
   webUrl?: string;
 };

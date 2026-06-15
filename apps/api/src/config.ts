@@ -1,16 +1,17 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { virtualEnvPythonPath } from "./services/pythonRuntime.js";
 
 const apiDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(apiDir, "../../..");
 const overlayRoot = path.join(repoRoot, "services/desktop-overlay");
 const ocrRoot = path.join(repoRoot, "services/ocr");
 const defaultOverlayScriptPath = path.join(overlayRoot, "overlay.py");
-const defaultOverlayPythonPath = path.join(overlayRoot, ".venv/bin/python");
+const defaultOverlayPythonPath = virtualEnvPythonPath(overlayRoot);
 const defaultOverlayAppPath = path.join(overlayRoot, "dist/Yomunami OCR Overlay.app");
 const defaultOverlayAppExecutablePath = path.join(defaultOverlayAppPath, "Contents/MacOS/Yomunami OCR Overlay");
 const defaultOcrScriptPath = path.join(ocrRoot, "app.py");
-const defaultOcrPythonPath = path.join(ocrRoot, ".venv/bin/python");
+const defaultOcrPythonPath = virtualEnvPythonPath(ocrRoot);
 
 function boolFromEnv(value: string | undefined, fallback: boolean): boolean {
   if (value == null || value.trim() === "") {
