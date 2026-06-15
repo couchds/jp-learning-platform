@@ -14,6 +14,7 @@ This project follows semantic versioning.
 - Add kanji/word knowledge XP tracking, known-state updates, and a profile graph for kanji experience over time.
 - Track OCR/resource and lookup sightings into knowledge history.
 - Add local KANJIDIC2 and JMdict importer scripts for populating the Japanese data tables from downloaded dataset files.
+- Add sentence example storage/search and derived kanji similarity graph storage/API foundations.
 
 ## 0.6.0 - 2026-06-14
 

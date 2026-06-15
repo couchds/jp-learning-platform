@@ -121,3 +121,68 @@ export function mapWordSummary(row: WordSummaryRow) {
     )
   };
 }
+
+export type SentenceExampleRow = {
+  id: number;
+  source: string;
+  source_id: string | null;
+  japanese: string;
+  reading: string | null;
+  english: string | null;
+  metadata_json: string;
+  created_at: string;
+  updated_at: string;
+  terms?: string | null;
+};
+
+export function mapSentenceExample(row: SentenceExampleRow) {
+  return {
+    id: row.id,
+    source: row.source,
+    sourceId: row.source_id,
+    japanese: row.japanese,
+    reading: row.reading,
+    english: row.english,
+    metadata: readJson<Record<string, unknown>>(row.metadata_json, {}),
+    terms: splitConcat(row.terms ?? null),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+export type KanjiRelationRow = {
+  id: number;
+  source_literal: string;
+  target_literal: string;
+  relation_type: string;
+  score: number;
+  reasons_json: string;
+  target_id: number | null;
+  target_meanings_json: string | null;
+  target_on_readings_json: string | null;
+  target_kun_readings_json: string | null;
+  target_stroke_count: number | null;
+  target_jlpt_level: number | null;
+  target_frequency_rank: number | null;
+};
+
+export function mapKanjiRelation(row: KanjiRelationRow) {
+  return {
+    id: row.id,
+    sourceLiteral: row.source_literal,
+    targetLiteral: row.target_literal,
+    relationType: row.relation_type,
+    score: row.score,
+    reasons: readJson<Array<{ type: string; detail: string; score: number }>>(row.reasons_json, []),
+    target: {
+      id: row.target_id,
+      literal: row.target_literal,
+      meanings: readJson<string[]>(row.target_meanings_json, []),
+      onReadings: readJson<string[]>(row.target_on_readings_json, []),
+      kunReadings: readJson<string[]>(row.target_kun_readings_json, []),
+      strokeCount: row.target_stroke_count,
+      jlptLevel: row.target_jlpt_level,
+      frequencyRank: row.target_frequency_rank
+    }
+  };
+}

@@ -162,9 +162,13 @@ Start the API once before importing so SQLite migrations create `data/local/app.
 ```powershell
 py -3 scripts/import_kanjidic2.py C:\path\to\kanjidic2.xml
 py -3 scripts/import_jmdict.py C:\path\to\JMdict_e.xml
+py -3 scripts/import_sentence_examples.py C:\path\to\sentences.tsv --source tatoeba
+py -3 scripts/build_kanji_graph.py
 ```
 
 Both importers default to `data/local/app.sqlite`. Pass `--db C:\path\to\app.sqlite` to target a different local database. For a quick JMdict smoke test, add `--limit 1000`.
+
+Sentence TSV imports accept headers such as `source_id`, `japanese`, `english`, and `reading`. Use `--no-header` for files ordered as `source_id`, `japanese`, `english`, `reading`. The kanji graph builder derives similarity edges from imported KANJIDIC2 metadata.
 
 ## Security And Privacy
 
@@ -179,6 +183,7 @@ Both importers default to `data/local/app.sqlite`. Pass `--db C:\path\to\app.sql
 - `POST /api/desktop/overlay/launch`
 - `GET|PUT /api/local/profile`
 - `GET /api/dashboard`
+- `GET /api/graph/kanji`
 - `GET /api/kanji`
 - `GET /api/kanji/:idOrLiteral`
 - `GET|PUT /api/knowledge`
@@ -198,6 +203,8 @@ Both importers default to `data/local/app.sqlite`. Pass `--db C:\path\to\app.sql
 - `GET /api/resources/:id/quiz/deck`
 - `GET /api/resources/:id/quiz/sessions`
 - `POST /api/resources/:id/quiz/sessions`
+- `GET /api/sentences`
+- `GET /api/sentences/:id`
 - `GET /api/runtime/doctor`
 - `GET|PUT /api/knowledge`
 - `GET /api/ocr/health`

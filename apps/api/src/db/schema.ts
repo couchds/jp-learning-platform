@@ -261,6 +261,56 @@ const migrations: Array<{ id: number; name: string; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_knowledge_events_item ON knowledge_events(item_type, item_key);
       CREATE INDEX IF NOT EXISTS idx_knowledge_events_occurred ON knowledge_events(occurred_at);
     `
+  },
+  {
+    id: 4,
+    name: "sentence_examples_and_kanji_graph",
+    sql: `
+      CREATE TABLE IF NOT EXISTS sentence_examples (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT NOT NULL,
+        source_id TEXT,
+        japanese TEXT NOT NULL,
+        reading TEXT,
+        english TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(source, source_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sentence_examples_japanese ON sentence_examples(japanese);
+      CREATE INDEX IF NOT EXISTS idx_sentence_examples_english ON sentence_examples(english);
+      CREATE INDEX IF NOT EXISTS idx_sentence_examples_source ON sentence_examples(source);
+
+      CREATE TABLE IF NOT EXISTS sentence_example_terms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sentence_id INTEGER NOT NULL REFERENCES sentence_examples(id) ON DELETE CASCADE,
+        term_text TEXT NOT NULL,
+        term_type TEXT NOT NULL,
+        term_order INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(sentence_id, term_text, term_type, term_order)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sentence_example_terms_text ON sentence_example_terms(term_text);
+      CREATE INDEX IF NOT EXISTS idx_sentence_example_terms_sentence ON sentence_example_terms(sentence_id);
+
+      CREATE TABLE IF NOT EXISTS kanji_relations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_literal TEXT NOT NULL,
+        target_literal TEXT NOT NULL,
+        relation_type TEXT NOT NULL,
+        score REAL NOT NULL DEFAULT 0,
+        reasons_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(source_literal, target_literal, relation_type)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_kanji_relations_source ON kanji_relations(source_literal, score);
+      CREATE INDEX IF NOT EXISTS idx_kanji_relations_target ON kanji_relations(target_literal);
+      CREATE INDEX IF NOT EXISTS idx_kanji_relations_type ON kanji_relations(relation_type);
+    `
   }
 ];
 
