@@ -82,6 +82,8 @@ type Loadable<T> = {
   error: string | null;
 };
 
+type NavItem = { id: View; label: string; icon: typeof Gauge };
+
 const emptyDashboard: Dashboard = {
   counts: {
     resources: 0,
@@ -94,20 +96,57 @@ const emptyDashboard: Dashboard = {
   recentResources: []
 };
 
-const navItems: Array<{ id: View; label: string; icon: typeof Gauge }> = [
-  { id: "home", label: "Home", icon: Home },
-  { id: "dashboard", label: "Dashboard", icon: Gauge },
-  { id: "database", label: "Database", icon: Database },
-  { id: "profile", label: "Profile", icon: Brain },
-  { id: "capture", label: "Capture", icon: Crosshair },
-  { id: "runtime", label: "Runtime", icon: Wrench },
-  { id: "resources", label: "Resources", icon: Boxes },
-  { id: "tracker", label: "Tracker", icon: ClipboardList },
-  { id: "quiz", label: "Quiz", icon: Trophy },
-  { id: "lookup", label: "Lookup", icon: Search },
-  { id: "draw", label: "Draw", icon: Pencil },
-  { id: "speech", label: "Speech", icon: Mic }
+const navGroups: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: "Overview",
+    items: [
+      { id: "home", label: "Home", icon: Home },
+      { id: "dashboard", label: "Dashboard", icon: Gauge },
+      { id: "profile", label: "Profile", icon: Brain }
+    ]
+  },
+  {
+    label: "Library",
+    items: [
+      { id: "database", label: "Database", icon: Database },
+      { id: "resources", label: "Resources", icon: Boxes },
+      { id: "lookup", label: "Lookup", icon: Search }
+    ]
+  },
+  {
+    label: "Practice",
+    items: [
+      { id: "capture", label: "Capture", icon: Crosshair },
+      { id: "tracker", label: "Tracker", icon: ClipboardList },
+      { id: "quiz", label: "Quiz", icon: Trophy }
+    ]
+  },
+  {
+    label: "Tools",
+    items: [
+      { id: "runtime", label: "Runtime", icon: Wrench },
+      { id: "draw", label: "Draw", icon: Pencil },
+      { id: "speech", label: "Speech", icon: Mic }
+    ]
+  }
 ];
+
+const navItems = navGroups.flatMap((group) => group.items);
+
+const viewSummaries: Record<View, string> = {
+  home: "Capture, collect, and review from a local study workspace.",
+  dashboard: "A quick read on local resources, captures, and reviews.",
+  database: "Browse imported kanji, words, sentences, and relation data.",
+  profile: "Track knowledge growth, XP, and kanji relationships.",
+  capture: "Run OCR tools and attach captures to study resources.",
+  runtime: "Check local services, platform readiness, and companion tools.",
+  resources: "Create and organize the media you are studying from.",
+  tracker: "Add dictionary-backed words or custom terms to a resource.",
+  quiz: "Practice resource vocabulary with quick recall sessions.",
+  lookup: "Search local kanji and word data, then mark what you know.",
+  draw: "Draw kanji and inspect recognition candidates.",
+  speech: "Inspect local pronunciation tooling and training commands."
+};
 
 export function App() {
   const [view, setView] = useState<View>("home");
@@ -141,9 +180,13 @@ export function App() {
   }
 
   const activeTitle = navItems.find((item) => item.id === view)?.label ?? "Dashboard";
+  const activeSummary = viewSummaries[view];
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       <aside className="sidebar" aria-label="Primary navigation">
         <div className="brand">
           <div className="brand-mark">日</div>
@@ -153,21 +196,30 @@ export function App() {
           </div>
         </div>
 
-        <nav className="nav-list">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                className={view === item.id ? "nav-button active" : "nav-button"}
-                type="button"
-                onClick={() => setView(item.id)}
-              >
-                <Icon size={18} aria-hidden="true" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+        <nav className="nav-list" aria-label="Main sections">
+          {navGroups.map((group) => (
+            <div className="nav-section" role="group" aria-label={group.label} key={group.label}>
+              <span className="nav-section-label">{group.label}</span>
+              <div className="nav-section-items">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = view === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      className={active ? "nav-button active" : "nav-button"}
+                      type="button"
+                      aria-current={active ? "page" : undefined}
+                      onClick={() => setView(item.id)}
+                    >
+                      <Icon size={18} aria-hidden="true" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         <section className="service-strip" aria-label="Local companion services">
@@ -185,11 +237,12 @@ export function App() {
         </section>
       </aside>
 
-      <main className="workspace">
+      <main className="workspace" id="main-content">
         <header className="topbar">
-          <div>
+          <div className="topbar-copy">
             <span className="eyebrow">Local-first Japanese learning</span>
             <h1>{activeTitle}</h1>
+            <p className="topbar-subtitle">{activeSummary}</p>
           </div>
           <div className="api-pill">
             <Database size={16} />
@@ -254,42 +307,49 @@ function HomeView({
     {
       icon: Monitor,
       title: "Any-window OCR overlay",
+      view: "capture",
       detail:
         "Launch a local hotkey overlay from the browser, drag over game or browser text, then save words and kanji to a resource."
     },
     {
       icon: ClipboardList,
       title: "Resource tracker",
+      view: "tracker",
       detail:
         "Organize manga, games, sites, books, and shows with captured vocabulary, kanji, notes, and OCR history on this machine."
     },
     {
       icon: Trophy,
       title: "Resource quizzes",
+      view: "quiz",
       detail:
         "Turn tracked terms into quick recall sessions and persist quiz attempts locally for each resource."
     },
     {
       icon: Pencil,
       title: "Handwriting recognition",
+      view: "draw",
       detail:
         "Draw unknown kanji and query the local recognition service for ranked candidates."
     },
     {
       icon: Mic,
       title: "Pronunciation model",
+      view: "speech",
       detail:
         "Keep speech recordings and lightweight model training local while the app grows toward richer feedback."
     },
     {
       icon: Wrench,
       title: "Runtime doctor",
+      view: "runtime",
       detail:
         "Check overlay dependencies, writable local storage, platform permission hints, and companion service health from the browser."
     },
     {
       icon: Shield,
       title: "Private by default",
+      view: "dashboard",
       detail:
         "SQLite, uploads, OCR captures, and model artifacts stay in ignored local paths with no public deployment assumptions."
     }
@@ -347,6 +407,14 @@ function HomeView({
               <Icon size={22} />
               <h3>{feature.title}</h3>
               <p>{feature.detail}</p>
+              <button
+                className="mini-button feature-card-action"
+                type="button"
+                aria-label={`Open ${feature.title}`}
+                onClick={() => onNavigate(feature.view)}
+              >
+                Open
+              </button>
             </article>
           );
         })}

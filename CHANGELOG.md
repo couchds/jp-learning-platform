@@ -20,6 +20,7 @@ This project follows semantic versioning.
 - Replace the profile XP chart with D3-backed timeline, composition, and kanji-ranking visuals that handle empty and flat data.
 - Add profile analytics for XP sources and a kanji knowledge network derived from tracked kanji and local relation edges.
 - Add dictionary lookup inside Tracker resources, including romaji word search and one-click resource word tracking.
+- Refine the web app UX with grouped navigation, clearer page headers, actionable Home cards, calmer surfaces, and improved tablet/mobile layouts.
 
 ## 0.6.0 - 2026-06-14
 
