@@ -1863,6 +1863,13 @@ function TrackerView({ onChange }: { onChange: () => void }) {
     meaning: "",
     notes: ""
   });
+  const [wordLookupQuery, setWordLookupQuery] = useState("");
+  const [wordLookup, setWordLookup] = useState<Loadable<Word[]>>({
+    data: [],
+    loading: false,
+    error: null
+  });
+  const [trackingWordId, setTrackingWordId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1874,6 +1881,38 @@ function TrackerView({ onChange }: { onChange: () => void }) {
       void loadDetail(selectedResourceId);
     }
   }, [selectedResourceId]);
+
+  useEffect(() => {
+    const query = wordLookupQuery.trim();
+    if (!query) {
+      setWordLookup({ data: [], loading: false, error: null });
+      return;
+    }
+
+    let cancelled = false;
+    const timeout = window.setTimeout(async () => {
+      setWordLookup((current) => ({ ...current, loading: true, error: null }));
+      try {
+        const response = await api.words(query);
+        if (!cancelled) {
+          setWordLookup({ data: response.items, loading: false, error: null });
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setWordLookup({
+            data: [],
+            loading: false,
+            error: requestError instanceof Error ? requestError.message : "Dictionary lookup failed"
+          });
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [wordLookupQuery]);
 
   async function loadResources() {
     const response = await api.resources("?limit=100");
@@ -1921,10 +1960,35 @@ function TrackerView({ onChange }: { onChange: () => void }) {
     onChange();
   }
 
+  async function trackDictionaryWord(word: Word) {
+    if (!selectedResourceId) {
+      return;
+    }
+
+    setTrackingWordId(word.id);
+    setMessage(null);
+    try {
+      await api.addResourceWord(selectedResourceId, word.id, { frequency: 1 });
+      setMessage(`${wordDisplay(word)} added to this resource.`);
+      await loadDetail(selectedResourceId);
+      onChange();
+    } catch (requestError) {
+      setWordLookup((current) => ({
+        ...current,
+        error: requestError instanceof Error ? requestError.message : "Could not track this word"
+      }));
+    } finally {
+      setTrackingWordId(null);
+    }
+  }
+
   const terms = detail.data?.terms ?? [];
+  const dictionaryWords = detail.data?.words ?? [];
   const kanjiCount = terms.filter((term) => term.termType === "kanji").length;
-  const wordCount = terms.filter((term) => term.termType === "word").length;
+  const wordCount = terms.filter((term) => term.termType === "word").length + dictionaryWords.length;
   const selectedResource = resources.find((resource) => resource.id === selectedResourceId);
+  const trackedWordIds = new Set(dictionaryWords.map((word) => word.id));
+  const trackedCount = terms.length + dictionaryWords.length;
 
   return (
     <section className="tracker-layout">
@@ -1949,7 +2013,7 @@ function TrackerView({ onChange }: { onChange: () => void }) {
         </label>
         <div className="tracker-metrics">
           <article>
-            <strong>{terms.length}</strong>
+            <strong>{trackedCount}</strong>
             <span>Total terms</span>
           </article>
           <article>
@@ -1961,7 +2025,62 @@ function TrackerView({ onChange }: { onChange: () => void }) {
             <span>Words</span>
           </article>
         </div>
+        <section className="tracker-lookup-panel">
+          <div>
+            <span className="eyebrow">Dictionary lookup</span>
+            <h3>Find and track a word</h3>
+            <p className="helper-text">Search Japanese, kana, romaji, or English, then add the JMdict entry to this resource.</p>
+          </div>
+          <div className="searchbar tracker-word-search">
+            <Search size={18} />
+            <input
+              value={wordLookupQuery}
+              onChange={(event) => setWordLookupQuery(event.target.value)}
+              placeholder="nihon, にほん, 日本, Japan"
+              disabled={!selectedResourceId}
+            />
+            {wordLookupQuery && (
+              <button type="button" aria-label="Clear word lookup" onClick={() => setWordLookupQuery("")}>
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          {wordLookup.error && <p className="error-text">{wordLookup.error}</p>}
+          {wordLookup.loading ? (
+            <EmptyState title="Searching dictionary" detail="Reading local word entries." />
+          ) : wordLookupQuery.trim() && wordLookup.data && wordLookup.data.length === 0 ? (
+            <EmptyState title="No matching words" detail="Try kana, kanji, romaji, or an English gloss." />
+          ) : wordLookup.data && wordLookup.data.length > 0 ? (
+            <div className="tracker-word-results">
+              {wordLookup.data.slice(0, 6).map((word) => {
+                const tracked = trackedWordIds.has(word.id);
+                return (
+                  <article className="tracker-word-result" key={word.id}>
+                    <div>
+                      <strong>{wordDisplay(word)}</strong>
+                      <span>{word.readings.join(" · ") || "-"}</span>
+                      <small>{word.glosses.slice(0, 2).join("; ") || "No gloss"}</small>
+                    </div>
+                    <button
+                      className="mini-button"
+                      type="button"
+                      disabled={!selectedResourceId || tracked || trackingWordId === word.id}
+                      onClick={() => void trackDictionaryWord(word)}
+                    >
+                      <Plus size={14} />
+                      {tracked ? "Tracked" : trackingWordId === word.id ? "Adding" : "Track"}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
+        </section>
         <form className="inline-form" onSubmit={(event) => void addTerm(event)}>
+          <div>
+            <span className="eyebrow">Manual fallback</span>
+            <h3>Add a custom term</h3>
+          </div>
           <label>
             Term
             <input
@@ -2022,31 +2141,66 @@ function TrackerView({ onChange }: { onChange: () => void }) {
       <section className="panel">
         <div className="panel-heading">
           <h2>{selectedResource?.name ?? "Resource Terms"}</h2>
-          <span>{detail.loading ? "loading" : `${terms.length} tracked`}</span>
+          <span>{detail.loading ? "loading" : `${trackedCount} tracked`}</span>
         </div>
         {detail.error && <p className="error-text">{detail.error}</p>}
         {!selectedResourceId ? (
           <EmptyState title="Pick a resource" detail="Tracked OCR terms and manual vocabulary are grouped by source." />
-        ) : terms.length === 0 ? (
-          <EmptyState title="No terms yet" detail="Use Capture to OCR a screenshot or add a term manually." />
+        ) : trackedCount === 0 ? (
+          <EmptyState title="No terms yet" detail="Look up a dictionary word, use Capture, or add a term manually." />
         ) : (
-          <div className="term-table">
-            {terms.map((term) => (
-              <article className="term-row" key={term.id}>
-                <div>
-                  <span>{term.termType}</span>
-                  <strong>{term.text}</strong>
+          <div className="tracked-resource-content">
+            {dictionaryWords.length > 0 && (
+              <section>
+                <div className="section-subheading">
+                  <h3>Dictionary words</h3>
+                  <span>{dictionaryWords.length}</span>
                 </div>
-                <span>{term.reading || "-"}</span>
-                <span>{term.meaning || term.notes || "-"}</span>
-                <small>{term.frequency}x</small>
-              </article>
-            ))}
+                <div className="resource-word-grid">
+                  {dictionaryWords.map((word) => (
+                    <article className="word-card" key={word.id}>
+                      <div>
+                        <strong>{wordDisplay(word)}</strong>
+                        <span>#{word.entryId}</span>
+                      </div>
+                      <p>{word.readings.join(" · ") || "-"}</p>
+                      <small>{word.glosses.slice(0, 3).join("; ") || "No gloss"}</small>
+                      {word.resource?.frequency ? <span>{word.resource.frequency}x in resource</span> : null}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+            {terms.length > 0 && (
+              <section>
+                <div className="section-subheading">
+                  <h3>Captured and manual terms</h3>
+                  <span>{terms.length}</span>
+                </div>
+                <div className="term-table">
+                  {terms.map((term) => (
+                    <article className="term-row" key={term.id}>
+                      <div>
+                        <span>{term.termType}</span>
+                        <strong>{term.text}</strong>
+                      </div>
+                      <span>{term.reading || "-"}</span>
+                      <span>{term.meaning || term.notes || "-"}</span>
+                      <small>{term.frequency}x</small>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </section>
     </section>
   );
+}
+
+function wordDisplay(word: Word) {
+  return word.kanjiForms[0] ?? word.readings[0] ?? `#${word.entryId}`;
 }
 
 function QuizView() {

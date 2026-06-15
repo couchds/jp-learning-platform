@@ -11,6 +11,7 @@
 - Keep database search state independent by tab and expose quick filters. Words, kanji, sentences, and graph exploration have different query shapes, so a single shared query makes cross-tab browsing feel noisy.
 - Use D3-generated SVG geometry for analytics instead of hand-scaled SVG primitives. Charts should keep a stable viewBox and avoid `preserveAspectRatio="none"` so labels, lines, and marks do not distort on wide screens.
 - Build knowledge-network analytics server-side from local `user_knowledge` and `kanji_relations`. The API should send graph-ready nodes and links so the frontend can focus on visual layout while keeping relationship rules centralized.
+- Resource tracking should prefer dictionary-backed lookup over manual entry. Manual terms remain a fallback, but resource workflows should search local dictionary data by Japanese, kana, romaji, or English and link canonical dictionary entries when possible.
 
 ## Dictionary Explorer Direction
 

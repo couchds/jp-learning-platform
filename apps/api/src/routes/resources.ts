@@ -413,6 +413,29 @@ resourcesRouter.get(
         frequency: number;
       }>;
 
+    const dictionaryWords = getDb()
+      .prepare(
+        `SELECT
+          d.id,
+          d.entry_id,
+          GROUP_CONCAT(ek.kanji, '|||') AS kanji_forms,
+          GROUP_CONCAT(er.reading, '|||') AS readings,
+          GROUP_CONCAT(sg.gloss, '|||') AS glosses,
+          GROUP_CONCAT(es.parts_of_speech_json, '|||') AS parts_of_speech,
+          rw.frequency
+         FROM resource_words rw
+         JOIN dictionary_entries d ON d.id = rw.entry_id
+         LEFT JOIN entry_kanji ek ON ek.entry_id = d.id
+         LEFT JOIN entry_readings er ON er.entry_id = d.id
+         LEFT JOIN entry_senses es ON es.entry_id = d.id
+         LEFT JOIN sense_glosses sg ON sg.sense_id = es.id
+         WHERE rw.resource_id = ?
+         GROUP BY d.id
+         ORDER BY rw.updated_at DESC, rw.frequency DESC
+         LIMIT ?`
+      )
+      .all(resourceId, limit) as Array<WordSummaryRow & { frequency: number }>;
+
     const questions = [
       ...terms.map((term) => ({
         id: `term:${term.id}`,
@@ -423,6 +446,19 @@ resourcesRouter.get(
         promptType: term.term_type,
         frequency: term.frequency
       })),
+      ...dictionaryWords.map((row) => {
+        const word = mapWordSummary(row);
+        const prompt = word.kanjiForms[0] ?? word.readings[0] ?? `#${word.entryId}`;
+        return {
+          id: `dictionary:${word.id}`,
+          sourceType: "word",
+          sourceKey: prompt,
+          prompt,
+          expectedAnswer: word.glosses.slice(0, 2).join("; ") || word.readings[0] || prompt,
+          promptType: "word",
+          frequency: row.frequency
+        };
+      }),
       ...customVocabulary.map((term) => ({
         id: `custom:${term.id}`,
         sourceType: "custom_vocabulary",

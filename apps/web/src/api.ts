@@ -151,6 +151,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify(term)
     }),
+  addResourceWord: (id: number, wordId: number, payload: { frequency?: number; notes?: string | null } = {}) =>
+    request<void>(`/api/resources/${id}/words/${wordId}`, {
+      method: "POST",
+      body: JSON.stringify({
+        frequency: payload.frequency ?? 1,
+        notes: payload.notes ?? null
+      })
+    }),
   quizDeck: (id: number, limit = 20) =>
     request<{ questions: QuizQuestion[] }>(`/api/resources/${id}/quiz/deck?limit=${limit}`),
   quizSessions: (id: number) =>
