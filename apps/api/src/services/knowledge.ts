@@ -8,7 +8,7 @@ export type KnowledgeEventOptions = {
   itemKey: string;
   xpDelta?: number;
   source?: string;
-  eventType?: "seen" | "known" | "manual";
+  eventType?: "seen" | "known" | "manual" | "quiz";
   markKnown?: boolean;
 };
 

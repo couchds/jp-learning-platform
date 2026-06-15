@@ -87,10 +87,11 @@ export function upsertResourceTerms(resourceId: number, terms: SuggestedTerm[]) 
         now
       );
 
+      const itemType = knowledgeItemTypeFor(term.termType);
       recordKnowledgeEvent(db, {
-        itemType: knowledgeItemTypeFor(term.termType),
+        itemType,
         itemKey: term.text,
-        xpDelta: term.frequency ?? 1,
+        xpDelta: itemType === "kanji" ? 0 : term.frequency ?? 1,
         source: term.source ?? "manual",
         eventType: "seen"
       });

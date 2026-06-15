@@ -130,6 +130,31 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
 
 const navItems = navGroups.flatMap((group) => group.items);
 
+const viewRoutes: Record<View, string> = {
+  home: "/",
+  dashboard: "/dashboard",
+  database: "/database",
+  profile: "/profile",
+  capture: "/capture",
+  runtime: "/runtime",
+  resources: "/resources",
+  tracker: "/tracker",
+  quiz: "/quiz",
+  lookup: "/lookup",
+  draw: "/draw",
+  speech: "/speech"
+};
+
+const routeViews = new Map(Object.entries(viewRoutes).map(([view, path]) => [path, view as View]));
+
+function viewFromPath(pathname: string): View {
+  return routeViews.get(pathname) ?? "home";
+}
+
+function navigateToView(view: View) {
+  window.location.assign(viewRoutes[view]);
+}
+
 const viewSummaries: Record<View, string> = {
   home: "Capture, collect, and review from your study workspace.",
   dashboard: "A quick read on resources, captures, and reviews.",
@@ -146,7 +171,7 @@ const viewSummaries: Record<View, string> = {
 };
 
 export function App() {
-  const [view, setView] = useState<View>("home");
+  const view = viewFromPath(window.location.pathname);
   const [dashboard, setDashboard] = useState<Loadable<Dashboard>>({
     data: null,
     loading: true,
@@ -196,16 +221,15 @@ export function App() {
                   const Icon = item.icon;
                   const active = view === item.id;
                   return (
-                    <button
+                    <a
                       key={item.id}
                       className={active ? "nav-button active" : "nav-button"}
-                      type="button"
+                      href={viewRoutes[item.id]}
                       aria-current={active ? "page" : undefined}
-                      onClick={() => setView(item.id)}
                     >
                       <Icon size={18} aria-hidden="true" />
                       <span>{item.label}</span>
-                    </button>
+                    </a>
                   );
                 })}
               </div>
@@ -224,7 +248,7 @@ export function App() {
           </div>
         </header>
 
-        {view === "home" && <HomeView onNavigate={setView} />}
+        {view === "home" && <HomeView onNavigate={navigateToView} />}
         {view === "dashboard" && (
           <DashboardView state={dashboard} onRefresh={() => void refreshDashboard()} />
         )}
@@ -233,7 +257,7 @@ export function App() {
         {view === "capture" && (
           <CaptureView
             onChange={() => void refreshDashboard()}
-            onNavigate={setView}
+            onNavigate={navigateToView}
           />
         )}
         {view === "runtime" && <RuntimeView />}
@@ -249,6 +273,31 @@ export function App() {
 }
 
 function HomeView({ onNavigate }: { onNavigate: (view: View) => void }) {
+  const [resources, setResources] = useState<Loadable<Resource[]>>({
+    data: [],
+    loading: true,
+    error: null
+  });
+
+  useEffect(() => {
+    void loadResources();
+  }, []);
+
+  async function loadResources() {
+    setResources((current) => ({ ...current, loading: true, error: null }));
+    try {
+      const response = await api.resources("?limit=12");
+      setResources({ data: response.items, loading: false, error: null });
+    } catch (requestError) {
+      setResources({
+        data: [],
+        loading: false,
+        error: requestError instanceof Error ? requestError.message : "Could not load resources"
+      });
+    }
+  }
+
+  const resourceItems = resources.data ?? [];
   const features = [
     {
       icon: Monitor,
@@ -262,7 +311,7 @@ function HomeView({ onNavigate }: { onNavigate: (view: View) => void }) {
       title: "Resource tracker",
       view: "tracker",
       detail:
-        "Organize manga, games, sites, books, and shows with captured vocabulary, kanji, notes, and OCR history on this machine."
+        "Organize manga, games, sites, books, and shows with captured vocabulary, kanji, notes, and OCR history."
     },
     {
       icon: Trophy,
@@ -289,27 +338,55 @@ function HomeView({ onNavigate }: { onNavigate: (view: View) => void }) {
 
   return (
     <section className="home-view">
-      <div className="landing-hero">
-        <div className="hero-copy">
-          <span className="eyebrow">Read Japanese where you actually meet it</span>
-          <h2>Capture text from games, track what matters, and drill it by resource.</h2>
-          <p>
-            Yomunami helps you turn immersion into review: capture text from real media, collect
-            vocabulary by source, look up kanji and words, practice handwriting, and run lightweight
-            quizzes from what you actually read.
-          </p>
-          <div className="hero-actions">
-            <button className="primary-button" type="button" onClick={() => onNavigate("capture")}>
-              <Crosshair size={17} />
-              Open capture controls
+      <section className="panel home-resource-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Resources</span>
+            <h2>What are you studying?</h2>
+          </div>
+          <div className="button-row">
+            <button className="secondary-button compact-button" type="button" onClick={() => void loadResources()}>
+              <RotateCcw size={16} />
+              Refresh
             </button>
-            <button className="secondary-button" type="button" onClick={() => onNavigate("resources")}>
-              <Boxes size={17} />
-              Add a resource
+            <button className="primary-button compact-button" type="button" onClick={() => onNavigate("resources")}>
+              <Plus size={16} />
+              Add resource
             </button>
           </div>
         </div>
-      </div>
+        {resources.error && <p className="error-text">{resources.error}</p>}
+        {resources.loading ? (
+          <EmptyState title="Loading resources" detail="Reading your shelf." />
+        ) : resourceItems.length === 0 ? (
+          <EmptyState title="Your shelf is empty" detail="Add a game, manga, book, show, or site to start tracking Japanese from it." />
+        ) : (
+          <div className="resource-grid">
+            {resourceItems.map((resource) => (
+              <article className="resource-card" key={resource.id}>
+                <div>
+                  <span className="resource-type">{resource.type.replace("_", " ")}</span>
+                  <h3>{resource.name}</h3>
+                  <p>{resource.description || "No notes yet."}</p>
+                </div>
+                <div className="tag-list">
+                  {resource.tags.map((tag) => (
+                    <span key={tag}>{tag}</span>
+                  ))}
+                </div>
+                <div className="button-row">
+                  <button className="mini-button" type="button" onClick={() => onNavigate("tracker")}>
+                    Tracker
+                  </button>
+                  <button className="mini-button" type="button" onClick={() => onNavigate("quiz")}>
+                    Quiz
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="feature-grid">
         {features.map((feature) => {
@@ -417,6 +494,7 @@ function DashboardView({
 }
 
 type DatabaseTab = "words" | "kanji" | "sentences" | "graph";
+type KanjiLevelFilter = 5 | 4 | 3 | 2 | 1;
 
 const defaultDatabaseQueries: Record<DatabaseTab, string> = {
   words: "",
@@ -425,32 +503,30 @@ const defaultDatabaseQueries: Record<DatabaseTab, string> = {
   graph: ""
 };
 
-const databaseQuickSearches: Record<DatabaseTab, Array<{ label: string; value: string }>> = {
-  words: [
-    { label: "All", value: "" },
-    { label: "日本", value: "日本" },
-    { label: "student", value: "student" },
-    { label: "book", value: "book" }
-  ],
-  kanji: [
-    { label: "All", value: "" },
-    { label: "日", value: "日" },
-    { label: "water", value: "water" },
-    { label: "study", value: "study" }
-  ],
-  sentences: [
-    { label: "All", value: "" },
-    { label: "日本", value: "日本" },
-    { label: "student", value: "student" },
-    { label: "Wednesday", value: "Wednesday" }
-  ],
-  graph: [
-    { label: "日", value: "日" },
-    { label: "本", value: "本" },
-    { label: "水", value: "水" },
-    { label: "学", value: "学" }
-  ]
-};
+const kanjiLevelFilters: Array<{ label: string; value: KanjiLevelFilter | null }> = [
+  { label: "All", value: null },
+  { label: "N5", value: 5 },
+  { label: "N4", value: 4 },
+  { label: "N3", value: 3 },
+  { label: "N2", value: 2 },
+  { label: "N1", value: 1 }
+];
+
+function kanjiJlptLabel(level: number | null) {
+  if (level == null) {
+    return "JLPT -";
+  }
+
+  const labels: Record<number, string> = {
+    4: "JLPT N5",
+    3: "JLPT N4",
+    2: "JLPT N3/N2",
+    1: "JLPT N1",
+    5: "JLPT N5"
+  };
+
+  return labels[level] ?? `JLPT ${level}`;
+}
 
 type ImportAction = {
   jobType: ImportJob["jobType"];
@@ -497,6 +573,7 @@ function DatabaseView() {
     loading: true,
     error: null
   });
+  const [kanjiLevel, setKanjiLevel] = useState<KanjiLevelFilter | null>(null);
   const [words, setWords] = useState<Loadable<Word[]>>({ data: [], loading: false, error: null });
   const [kanji, setKanji] = useState<Loadable<Kanji[]>>({ data: [], loading: false, error: null });
   const [sentences, setSentences] = useState<Loadable<SentenceExample[]>>({
@@ -541,7 +618,7 @@ function DatabaseView() {
     }, 250);
 
     return () => window.clearTimeout(timeout);
-  }, [activeTab, query]);
+  }, [activeTab, query, kanjiLevel]);
 
   async function loadSummary() {
     setSummary((current) => ({ ...current, loading: true, error: null }));
@@ -609,7 +686,7 @@ function DatabaseView() {
     if (tab === "kanji") {
       setKanji((current) => ({ ...current, loading: true, error: null }));
       try {
-        const response = await api.kanji(value.trim());
+        const response = await api.kanji(value.trim(), kanjiLevel);
         setKanji({ data: response.items, loading: false, error: null });
       } catch (requestError) {
         setKanji({ data: [], loading: false, error: requestError instanceof Error ? requestError.message : "Kanji search failed" });
@@ -663,7 +740,6 @@ function DatabaseView() {
     sentences: "Search Japanese or English sentence examples",
     graph: "Enter one kanji to explore similar kanji"
   }[activeTab];
-  const quickSearches = databaseQuickSearches[activeTab];
 
   return (
     <section className="database-view">
@@ -731,18 +807,20 @@ function DatabaseView() {
             )}
           </div>
         </div>
-        <div className="database-query-chips" aria-label={`${activeTab} quick searches`}>
-          {quickSearches.map((item) => (
-            <button
-              key={item.label}
-              className={query === item.value ? "database-query-chip active" : "database-query-chip"}
-              type="button"
-              onClick={() => setActiveQuery(item.value)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        {activeTab === "kanji" && (
+          <div className="kanji-level-tabs" aria-label="Kanji JLPT level">
+            {kanjiLevelFilters.map((item) => (
+              <button
+                key={item.label}
+                className={kanjiLevel === item.value ? "kanji-level-tab active" : "kanji-level-tab"}
+                type="button"
+                onClick={() => setKanjiLevel(item.value)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {activeTab === "words" && <WordDatabaseResults state={words} />}
         {activeTab === "kanji" && <KanjiDatabaseResults state={kanji} />}
@@ -906,7 +984,7 @@ function KanjiDatabaseResults({ state }: { state: Loadable<Kanji[]> }) {
           <div>
             <span>{item.meanings.slice(0, 4).join(", ") || "No meaning"}</span>
             <small>
-              JLPT {item.jlptLevel ?? "-"} · {item.strokeCount ?? "-"} strokes · #{item.frequencyRank ?? "-"}
+              {kanjiJlptLabel(item.jlptLevel)} · {item.strokeCount ?? "-"} strokes · #{item.frequencyRank ?? "-"}
             </small>
           </div>
           <p>{[...item.onReadings.slice(0, 3), ...item.kunReadings.slice(0, 3)].join(" · ") || "No readings"}</p>
@@ -1059,7 +1137,7 @@ function ProfileView() {
     {
       label: "Kanji XP",
       value: totals?.kanji.xp ?? 0,
-      detail: `${totals?.kanji.seen ?? 0} sightings`,
+      detail: "from correct quiz answers",
       icon: Trophy
     },
     {
@@ -1083,7 +1161,7 @@ function ProfileView() {
           <span className="eyebrow">Knowledge profile</span>
           <h2>{summary.loading ? "Loading study profile" : "Kanji and word tracking"}</h2>
           <p className="helper-text">
-            Kanji and words gain experience when they appear in OCR captures, tracker entries, or lookup actions.
+            Kanji XP comes from correct quiz answers. Captures and tracker entries build the resource decks you quiz from.
           </p>
           {summary.error && <p className="error-text">{summary.error}</p>}
         </div>
@@ -1117,7 +1195,7 @@ function ProfileView() {
         ) : summary.loading ? (
           <EmptyState title="Loading profile graph" detail="Reading kanji experience history." />
         ) : (
-          <EmptyState title="No profile data yet" detail="Capture or mark kanji as seen to build a history graph." />
+          <EmptyState title="No profile data yet" detail="Finish a resource quiz with kanji prompts to build an XP history." />
         )}
       </section>
 
@@ -2477,18 +2555,9 @@ function LookupView() {
                 <strong>{item.literal}</strong>
                 <span>{item.meanings.slice(0, 3).join(", ") || "No meaning"}</span>
                 <small>
-                  JLPT {item.jlptLevel ?? "-"} · {item.strokeCount ?? "-"} strokes
+                  {kanjiJlptLabel(item.jlptLevel)} · {item.strokeCount ?? "-"} strokes
                 </small>
                 <div className="knowledge-actions">
-                  <button
-                    className="mini-button"
-                    type="button"
-                    disabled={knowledgeBusy === `kanji:${item.literal}:seen`}
-                    onClick={() => void trackKnowledge("kanji", item.literal, "seen")}
-                  >
-                    <Plus size={14} />
-                    XP
-                  </button>
                   <button
                     className="mini-button"
                     type="button"
@@ -2499,6 +2568,7 @@ function LookupView() {
                     Known
                   </button>
                 </div>
+                <small>Kanji XP comes from correct quiz answers.</small>
               </article>
             ))}
           </div>

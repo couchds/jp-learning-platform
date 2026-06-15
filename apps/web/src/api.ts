@@ -25,6 +25,17 @@ import type {
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:3001";
 
+function legacyKanjiJlptLevel(level: number) {
+  const legacyLevels: Record<number, number> = {
+    5: 4,
+    4: 3,
+    3: 2,
+    2: 2,
+    1: 1
+  };
+  return legacyLevels[level] ?? level;
+}
+
 class ApiRequestError extends Error {
   status: number;
   payload: unknown;
@@ -187,7 +198,16 @@ export const api = {
         body: JSON.stringify({})
       }
     ),
-  kanji: (search: string) => request<Page<Kanji>>(`/api/kanji?limit=24&search=${encodeURIComponent(search)}`),
+  kanji: (search = "", jlptLevel?: number | null) => {
+    const params = new URLSearchParams({ limit: "24" });
+    if (search.trim()) {
+      params.set("search", search.trim());
+    }
+    if (jlptLevel) {
+      params.set("jlpt", String(legacyKanjiJlptLevel(jlptLevel)));
+    }
+    return request<Page<Kanji>>(`/api/kanji?${params.toString()}`);
+  },
   words: (search: string) => request<Page<Word>>(`/api/words?limit=24&search=${encodeURIComponent(search)}`),
   sentences: (search: string) =>
     request<Page<SentenceExample>>(`/api/sentences?limit=24&search=${encodeURIComponent(search)}`),

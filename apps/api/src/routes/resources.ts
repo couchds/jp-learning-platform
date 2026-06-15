@@ -12,6 +12,7 @@ import {
   type WordSummaryRow
 } from "../db/mappers.js";
 import { asyncHandler, HttpError, parseLimitOffset } from "../lib/http.js";
+import { recordKnowledgeEvent } from "../services/knowledge.js";
 import { type SuggestedTerm, upsertResourceTerms } from "../services/ocrTerms.js";
 
 const resourceSchema = z.object({
@@ -511,6 +512,8 @@ resourcesRouter.post(
           answer.sourceType ?? null,
           answer.sourceKey ?? null
         );
+
+        recordQuizKnowledge(db, answer);
       }
 
       return session.lastInsertRowid;
@@ -558,6 +561,27 @@ function ensureExists(table: "kanji" | "dictionary_entries", id: number, message
   if (!row) {
     throw new HttpError(404, message);
   }
+}
+
+function recordQuizKnowledge(
+  db: ReturnType<typeof getDb>,
+  answer: {
+    correct: boolean;
+    sourceType?: string | null;
+    sourceKey?: string | null;
+  }
+) {
+  if (!answer.correct || answer.sourceType !== "kanji" || !answer.sourceKey) {
+    return;
+  }
+
+  recordKnowledgeEvent(db, {
+    itemType: "kanji",
+    itemKey: answer.sourceKey,
+    xpDelta: 5,
+    source: "quiz",
+    eventType: "quiz"
+  });
 }
 
 function validateTermImageSources(resourceId: number, terms: Pick<SuggestedTerm, "sourceImageId">[]) {
