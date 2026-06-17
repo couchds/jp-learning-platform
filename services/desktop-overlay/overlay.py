@@ -31,6 +31,20 @@ LOG_PATH = Path.home() / ".yomunami-overlay.log"
 DEFAULT_API_URL = os.environ.get("YOMUNAMI_API_URL", "http://127.0.0.1:3001")
 DEFAULT_WEB_URL = os.environ.get("YOMUNAMI_WEB_URL", "http://127.0.0.1:5173")
 DEFAULT_HOTKEY = "ctrl+shift+o"
+UI_FONT = "Segoe UI" if sys.platform == "win32" else "TkDefaultFont"
+JP_FONT = "Yu Gothic UI" if sys.platform == "win32" else "TkDefaultFont"
+
+REVIEW_BG = "#0e1413"
+REVIEW_STAGE = "#090f0e"
+REVIEW_SURFACE = "#f5efe5"
+REVIEW_SURFACE_ALT = "#fffbf4"
+REVIEW_TEXT = "#1b201f"
+REVIEW_MUTED = "#67706c"
+REVIEW_BORDER = "#d9d0c3"
+REVIEW_PRIMARY = "#19b394"
+REVIEW_PRIMARY_DARK = "#0f6d60"
+REVIEW_ACCENT = "#f0b84b"
+REVIEW_DANGER = "#c24135"
 
 
 def log_debug(message: str) -> None:
@@ -739,7 +753,7 @@ class ScreenReviewOverlay:
 
         self.window = tk.Toplevel(root)
         self.window.title("Yomunami Screen OCR")
-        self.window.configure(bg="#f7f7f4")
+        self.window.configure(bg=REVIEW_BG)
         self.window.attributes("-fullscreen", True)
         self.window.attributes("-topmost", True)
         self.window.protocol("WM_DELETE_WINDOW", self.close)
@@ -747,82 +761,166 @@ class ScreenReviewOverlay:
         self.window.bind("<Return>", lambda _event: self.add_selected())
 
         self.status = tk.StringVar(value="Scanning screen...")
+        self.selected_count = tk.StringVar(value="0 selected")
         self.build_ui()
         self.window.after(50, self.render_screen)
 
     def build_ui(self) -> None:
-        topbar = tk.Frame(self.window, bg="#f7f7f4", height=54)
+        topbar = tk.Frame(self.window, bg=REVIEW_BG, height=74)
         topbar.pack(fill=tk.X, side=tk.TOP)
         topbar.pack_propagate(False)
 
+        brand = tk.Frame(topbar, bg=REVIEW_BG)
+        brand.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=20, pady=10)
         tk.Label(
-            topbar,
+            brand,
             text="Yomunami OCR",
-            bg="#f7f7f4",
-            fg="#181712",
-            font=("TkDefaultFont", 16, "bold"),
-        ).pack(side=tk.LEFT, padx=16)
-        tk.Label(topbar, textvariable=self.status, bg="#f7f7f4", fg="#3e3a33").pack(side=tk.LEFT, padx=10)
-        tk.Button(topbar, text="Close", command=self.close).pack(side=tk.RIGHT, padx=(6, 14), pady=8)
-        tk.Button(topbar, text="Select tighter region", command=self.precise_region).pack(side=tk.RIGHT, padx=6, pady=8)
-        tk.Button(topbar, text="Save selected terms", command=self.add_selected).pack(side=tk.RIGHT, padx=6, pady=8)
+            bg=REVIEW_BG,
+            fg="#fff7eb",
+            font=(UI_FONT, 19, "bold"),
+        ).pack(anchor=tk.W)
+        tk.Label(
+            brand,
+            text="Screen review - verify highlights, choose terms, save to your resource",
+            bg=REVIEW_BG,
+            fg="#9db0aa",
+            font=(UI_FONT, 10),
+        ).pack(anchor=tk.W, pady=(2, 0))
 
-        body = tk.Frame(self.window, bg="#f7f7f4")
+        status_chip = tk.Label(
+            topbar,
+            textvariable=self.status,
+            bg="#1c2b28",
+            fg="#b9f6e7",
+            width=34,
+            anchor=tk.W,
+            padx=14,
+            pady=7,
+            font=(UI_FONT, 10, "bold"),
+        )
+        status_chip.pack(side=tk.LEFT, padx=(0, 16))
+
+        button_bar = tk.Frame(topbar, bg=REVIEW_BG)
+        button_bar.pack(side=tk.RIGHT, padx=18)
+        self.overlay_button(button_bar, "Close", self.close, "ghost").pack(side=tk.RIGHT)
+        self.overlay_button(button_bar, "Tighter region", self.precise_region, "secondary").pack(
+            side=tk.RIGHT,
+            padx=(0, 8),
+        )
+        self.overlay_button(button_bar, "Save selected", self.add_selected, "primary").pack(side=tk.RIGHT, padx=(0, 8))
+
+        body = tk.Frame(self.window, bg=REVIEW_BG)
         body.pack(fill=tk.BOTH, expand=True)
 
-        self.canvas = tk.Canvas(body, bg="#ffffff", highlightthickness=0)
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        stage = tk.Frame(body, bg=REVIEW_STAGE)
+        stage.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(16, 10), pady=(0, 16))
+        self.canvas = tk.Canvas(stage, bg=REVIEW_STAGE, highlightthickness=0)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.bind("<Configure>", lambda _event: self.render_screen())
 
-        side = tk.Frame(body, bg="#f7f7f4", width=340)
-        side.pack(side=tk.RIGHT, fill=tk.Y)
+        side = tk.Frame(body, bg=REVIEW_SURFACE, width=382)
+        side.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 16), pady=(0, 16))
         side.pack_propagate(False)
 
+        side_header = tk.Frame(side, bg=REVIEW_SURFACE)
+        side_header.pack(fill=tk.X, padx=18, pady=(18, 8))
         tk.Label(
-            side,
-            text="Terms to save",
-            bg="#f7f7f4",
-            fg="#181712",
-            font=("TkDefaultFont", 13, "bold"),
-        ).pack(anchor=tk.W, padx=12, pady=(12, 4))
+            side_header,
+            text="Terms",
+            bg=REVIEW_SURFACE,
+            fg=REVIEW_TEXT,
+            font=(UI_FONT, 17, "bold"),
+        ).pack(side=tk.LEFT)
+        tk.Label(
+            side_header,
+            textvariable=self.selected_count,
+            bg="#e8ded0",
+            fg="#4c5853",
+            padx=10,
+            pady=4,
+            font=(UI_FONT, 9, "bold"),
+        ).pack(side=tk.RIGHT)
         tk.Label(
             side,
             text="Selected rows are saved to the resource chosen in the control panel.",
-            bg="#f7f7f4",
-            fg="#3e3a33",
-            wraplength=312,
+            bg=REVIEW_SURFACE,
+            fg=REVIEW_MUTED,
+            wraplength=336,
             justify=tk.LEFT,
-        ).pack(anchor=tk.W, padx=12, pady=(0, 8))
+            font=(UI_FONT, 9),
+        ).pack(anchor=tk.W, padx=18, pady=(0, 12))
+
+        terms_box = tk.Frame(side, bg=REVIEW_SURFACE_ALT, highlightbackground=REVIEW_BORDER, highlightthickness=1)
+        terms_box.pack(fill=tk.BOTH, expand=True, padx=18, pady=(0, 16))
         self.terms_list = tk.Listbox(
-            side,
+            terms_box,
             selectmode=tk.MULTIPLE,
-            bg="#ffffff",
-            fg="#181712",
-            selectbackground="#226f68",
+            bg=REVIEW_SURFACE_ALT,
+            fg=REVIEW_TEXT,
+            selectbackground=REVIEW_PRIMARY_DARK,
             selectforeground="#ffffff",
             highlightthickness=0,
             activestyle="none",
+            relief=tk.FLAT,
+            borderwidth=0,
+            font=(JP_FONT, 10),
+            exportselection=False,
         )
-        self.terms_list.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
+        terms_scrollbar = tk.Scrollbar(terms_box, orient=tk.VERTICAL, command=self.terms_list.yview)
+        self.terms_list.configure(yscrollcommand=terms_scrollbar.set)
+        self.terms_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0), pady=10)
+        terms_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(4, 8), pady=10)
+        self.terms_list.bind("<<ListboxSelect>>", lambda _event: self.update_selected_count())
 
         tk.Label(
             side,
             text="OCR text",
-            bg="#f7f7f4",
-            fg="#181712",
-            font=("TkDefaultFont", 13, "bold"),
-        ).pack(anchor=tk.W, padx=12, pady=(0, 4))
+            bg=REVIEW_SURFACE,
+            fg=REVIEW_TEXT,
+            font=(UI_FONT, 13, "bold"),
+        ).pack(anchor=tk.W, padx=18, pady=(0, 6))
+        raw_box = tk.Frame(side, bg=REVIEW_SURFACE_ALT, highlightbackground=REVIEW_BORDER, highlightthickness=1)
+        raw_box.pack(fill=tk.X, padx=18, pady=(0, 18))
         self.raw_text = tk.Text(
-            side,
-            height=9,
+            raw_box,
+            height=8,
             wrap=tk.WORD,
-            bg="#ffffff",
-            fg="#181712",
-            insertbackground="#181712",
+            bg=REVIEW_SURFACE_ALT,
+            fg=REVIEW_TEXT,
+            insertbackground=REVIEW_TEXT,
             highlightthickness=0,
+            relief=tk.FLAT,
+            borderwidth=0,
+            padx=10,
+            pady=10,
+            font=(JP_FONT, 10),
         )
-        self.raw_text.pack(fill=tk.X, padx=12, pady=(0, 12))
+        self.raw_text.pack(fill=tk.X)
         self.raw_text.insert("1.0", "Scanning...")
+
+    def overlay_button(self, parent: tk.Widget, text: str, command, variant: str) -> tk.Button:
+        styles = {
+            "primary": (REVIEW_PRIMARY, "#06221d", "#37d7b7"),
+            "secondary": ("#243733", "#dff8ef", "#315049"),
+            "ghost": ("#17201f", "#d8e2de", "#263230"),
+        }
+        bg, fg, active_bg = styles.get(variant, styles["secondary"])
+        return tk.Button(
+            parent,
+            text=text,
+            command=command,
+            bg=bg,
+            fg=fg,
+            activebackground=active_bg,
+            activeforeground=fg,
+            relief=tk.FLAT,
+            borderwidth=0,
+            highlightthickness=0,
+            padx=15,
+            pady=8,
+            font=(UI_FONT, 10, "bold"),
+            cursor="hand2",
+        )
 
     def apply_result(self, raw_text: str, terms: list[Term], highlights: list[Highlight]) -> None:
         self.loaded = True
@@ -833,9 +931,12 @@ class ScreenReviewOverlay:
         self.raw_text.insert("1.0", raw_text or "No text found.")
         self.terms_list.delete(0, tk.END)
         for index, term in enumerate(self.terms):
-            self.terms_list.insert(tk.END, f"{term.text}  [{term.term_type}]")
-            if term.term_type in {"kanji", "word", "phrase"}:
+            self.terms_list.insert(tk.END, self.term_label(term))
+            row_bg, row_fg = self.term_row_colors(term, index)
+            self.terms_list.itemconfig(index, background=row_bg, foreground=row_fg)
+            if term.term_type in {"kanji", "word", "vocabulary", "phrase"}:
                 self.terms_list.selection_set(index)
+        self.update_selected_count()
         self.render_screen()
 
     def show_error(self, message: str) -> None:
@@ -843,6 +944,8 @@ class ScreenReviewOverlay:
         self.status.set(f"OCR failed: {message}")
         self.raw_text.delete("1.0", tk.END)
         self.raw_text.insert("1.0", message)
+        self.terms_list.delete(0, tk.END)
+        self.update_selected_count()
         self.render_screen()
 
     def show_capture_problem(self, message: str) -> None:
@@ -852,7 +955,30 @@ class ScreenReviewOverlay:
         self.raw_text.delete("1.0", tk.END)
         self.raw_text.insert("1.0", message)
         self.terms_list.delete(0, tk.END)
+        self.update_selected_count()
         self.render_screen()
+
+    def term_label(self, term: Term) -> str:
+        label = f"{term.text}    {term.term_type.upper()}"
+        if term.reading:
+            label = f"{label}    {term.reading}"
+        return label
+
+    def term_row_colors(self, term: Term, index: int) -> tuple[str, str]:
+        if term.term_type == "kanji":
+            return "#fff3cf", "#533a00"
+        if term.term_type in {"word", "vocabulary", "phrase"}:
+            return "#e7f8f3", "#123d35"
+        if term.term_type in {"hiragana", "katakana", "kana"}:
+            return "#fffaf0", "#514839"
+        if index % 2:
+            return "#f4efe6", "#5d6662"
+        return REVIEW_SURFACE_ALT, "#5d6662"
+
+    def update_selected_count(self) -> None:
+        selected = len(self.terms_list.curselection())
+        total = self.terms_list.size()
+        self.selected_count.set(f"{selected} of {total} selected" if total else "0 selected")
 
     def finish_add(self, message: str) -> None:
         self.saving = False
@@ -863,6 +989,7 @@ class ScreenReviewOverlay:
         width = max(self.canvas.winfo_width(), 1)
         height = max(self.canvas.winfo_height(), 1)
         self.canvas.delete("all")
+        self.canvas.create_rectangle(0, 0, width, height, fill=REVIEW_STAGE, outline="")
 
         scale = min(width / self.image.width, height / self.image.height, 1.0)
         preview_size = (max(1, int(self.image.width * scale)), max(1, int(self.image.height * scale)))
@@ -873,6 +1000,23 @@ class ScreenReviewOverlay:
         self.image_offset = (offset_x, offset_y)
         self.image_scale = scale
 
+        shadow = 10
+        self.canvas.create_rectangle(
+            offset_x + shadow,
+            offset_y + shadow,
+            offset_x + preview_size[0] + shadow,
+            offset_y + preview_size[1] + shadow,
+            fill="#050807",
+            outline="",
+        )
+        self.canvas.create_rectangle(
+            offset_x - 1,
+            offset_y - 1,
+            offset_x + preview_size[0] + 1,
+            offset_y + preview_size[1] + 1,
+            outline="#263633",
+            width=1,
+        )
         self.canvas.create_image(offset_x, offset_y, anchor=tk.NW, image=self.photo)
 
         if self.capture_problem is not None:
@@ -883,16 +1027,24 @@ class ScreenReviewOverlay:
             self.draw_highlight(highlight)
 
         if not self.loaded:
-            self.canvas.create_rectangle(20, 20, 290, 76, fill="#ffffff", outline="#6f685c", width=2)
-            self.canvas.create_text(36, 38, anchor=tk.NW, text="Scanning screen...", fill="#181712")
-        elif not self.highlights:
-            self.canvas.create_rectangle(20, 20, 520, 88, fill="#ffffff", outline="#b3261e", width=2)
+            self.canvas.create_rectangle(24, 24, 318, 88, fill="#111d1a", outline="#38524b", width=1)
             self.canvas.create_text(
-                36,
-                36,
+                44,
+                45,
+                anchor=tk.NW,
+                text="Scanning screen...",
+                fill="#e9fff8",
+                font=(UI_FONT, 14, "bold"),
+            )
+        elif not self.highlights:
+            self.canvas.create_rectangle(24, 24, 570, 98, fill="#fff8ef", outline=REVIEW_DANGER, width=2)
+            self.canvas.create_text(
+                44,
+                43,
                 anchor=tk.NW,
                 text="No OCR highlights found. Try Select tighter region for a snug crop.",
-                fill="#181712",
+                fill=REVIEW_TEXT,
+                font=(UI_FONT, 12, "bold"),
             )
 
     def draw_capture_problem(self, width: int, height: int) -> None:
@@ -900,14 +1052,22 @@ class ScreenReviewOverlay:
         box_height = 190
         x1 = int((width - box_width) / 2)
         y1 = max(48, int((height - box_height) / 3))
-        self.canvas.create_rectangle(x1, y1, x1 + box_width, y1 + box_height, fill="#ffffff", outline="#b3261e", width=3)
+        self.canvas.create_rectangle(
+            x1,
+            y1,
+            x1 + box_width,
+            y1 + box_height,
+            fill=REVIEW_SURFACE_ALT,
+            outline=REVIEW_DANGER,
+            width=3,
+        )
         self.canvas.create_text(
             x1 + 24,
             y1 + 22,
             anchor=tk.NW,
             text="Yomunami cannot see your screen yet",
-            fill="#181712",
-            font=("TkDefaultFont", 22, "bold"),
+            fill=REVIEW_TEXT,
+            font=(UI_FONT, 22, "bold"),
         )
         self.canvas.create_text(
             x1 + 24,
@@ -917,17 +1077,17 @@ class ScreenReviewOverlay:
                 "macOS returned a blank image. Grant Screen Recording permission to Python, "
                 "Terminal, or the app that launched the overlay, then quit and relaunch the overlay."
             ),
-            fill="#181712",
+            fill=REVIEW_TEXT,
             width=box_width - 48,
-            font=("TkDefaultFont", 14),
+            font=(UI_FONT, 14),
         )
         self.canvas.create_text(
             x1 + 24,
             y1 + 132,
             anchor=tk.NW,
             text=f"Diagnostics: {LOG_PATH}",
-            fill="#5c5448",
-            font=("TkDefaultFont", 12),
+            fill=REVIEW_MUTED,
+            font=(UI_FONT, 12),
         )
 
     def draw_highlight(self, highlight: Highlight) -> None:
@@ -938,16 +1098,28 @@ class ScreenReviewOverlay:
         y1 = y_offset + bbox["y"] * scale
         x2 = x_offset + (bbox["x"] + bbox["width"]) * scale
         y2 = y_offset + (bbox["y"] + bbox["height"]) * scale
-        color = "#ffd166" if highlight.element_type == "kanji" else "#50e3c2"
-        self.canvas.create_rectangle(x1, y1, x2, y2, outline=color, width=2)
-        if highlight.text and (x2 - x1) > 24:
+        color = REVIEW_ACCENT if highlight.element_type == "kanji" else REVIEW_PRIMARY
+        width = 3 if highlight.element_type in {"kanji", "vocabulary", "word", "phrase"} else 2
+        self.canvas.create_rectangle(x1, y1, x2, y2, outline="#07100e", width=width + 1)
+        self.canvas.create_rectangle(x1, y1, x2, y2, outline=color, width=width)
+        should_label = (
+            highlight.text
+            and highlight.element_type in {"kanji", "vocabulary", "word", "phrase"}
+            and len(highlight.text) <= 8
+            and (x2 - x1) > 42
+            and (y2 - y1) > 14
+        )
+        if should_label:
+            label_width = min(150, max(34, len(highlight.text) * 12 + 14))
+            label_y = max(y_offset + 3, y1 - 22)
+            self.canvas.create_rectangle(x1, label_y, x1 + label_width, label_y + 19, fill=color, outline=color)
             self.canvas.create_text(
-                x1 + 3,
-                max(y_offset + 3, y1 - 15),
+                x1 + 7,
+                label_y + 2,
                 anchor=tk.NW,
                 text=highlight.text,
-                fill=color,
-                font=("TkDefaultFont", 10, "bold"),
+                fill="#07100e",
+                font=(JP_FONT, 9, "bold"),
             )
 
     def selected_terms(self) -> list[Term]:

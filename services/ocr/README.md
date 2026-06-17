@@ -26,7 +26,7 @@ Default URL: `http://127.0.0.1:5100`.
 
 After the virtual environment and OCR engine are installed, the browser Capture page can start this service through the local API. The launcher prefers the platform virtual environment Python path (`.venv/Scripts/python.exe` on Windows, `.venv/bin/python` on macOS/Linux) and surfaces startup errors if dependencies are missing.
 
-The service defaults to `OCR_BACKEND=auto`, which prefers MangaOCR on Windows for reliable local startup and EasyOCR on macOS/Linux for box-aware overlay highlights. Set `OCR_BACKEND=manga-ocr` or `OCR_BACKEND=easyocr` to force a specific local backend.
+The service defaults to `OCR_BACKEND=auto`, which prefers EasyOCR when installed for box-aware overlay highlights and falls back to MangaOCR for focused text recognition without boxes. Set `OCR_BACKEND=manga-ocr` or `OCR_BACKEND=easyocr` to force a specific local backend.
 
 EasyOCR detections below `OCR_EASYOCR_MIN_CONFIDENCE=0.05` are filtered to avoid noisy full-window highlights. Lower it for difficult game fonts; raise it if screenshots produce too many false positives.
 

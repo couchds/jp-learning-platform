@@ -104,7 +104,7 @@ ocrRouter.post(
         ...process.env,
         OCR_HOST: launchTarget.hostname,
         OCR_PORT: launchTarget.port,
-        OCR_BACKEND: process.env.OCR_BACKEND ?? (process.platform === "win32" ? "manga-ocr" : "auto"),
+        OCR_BACKEND: process.env.OCR_BACKEND ?? "auto",
         HF_HUB_DISABLE_XET: process.env.HF_HUB_DISABLE_XET ?? (process.platform === "win32" ? "1" : undefined),
         LOCAL_ALLOWED_ORIGINS: config.allowedOrigins.join(",")
       }

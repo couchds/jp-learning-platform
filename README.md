@@ -68,7 +68,7 @@ Python services will each have their own virtual environment and `requirements.t
 
 The browser Capture page can start the OCR service after the OCR virtual environment and OCR engine package are installed. It intentionally does not run `pip install` automatically.
 
-The OCR service defaults to `OCR_BACKEND=auto`. In auto mode it prefers MangaOCR on Windows for reliable local startup, and prefers EasyOCR on macOS/Linux when installed because EasyOCR returns bounding boxes for overlay highlights. Set `OCR_BACKEND=easyocr` explicitly when you want EasyOCR on Windows.
+The OCR service defaults to `OCR_BACKEND=auto`. In auto mode it prefers EasyOCR when installed because EasyOCR returns bounding boxes for overlay highlights, then falls back to MangaOCR for focused text recognition without boxes. Set `OCR_BACKEND=manga-ocr` explicitly when you want MangaOCR.
 
 Run optional companion services in separate terminals.
 
