@@ -12,7 +12,7 @@ Desktop data is stored under the operating system's Yomunami user-data directory
 
 ## Requirements
 
-- Node.js 22.12 or newer
+- Node.js 24 or newer
 - Python 3.12 when developing or packaging companion services
 
 Install JavaScript dependencies:
