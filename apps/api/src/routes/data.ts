@@ -1,8 +1,46 @@
 import { Router } from "express";
 import { getDb } from "../db/index.js";
 import { asyncHandler } from "../lib/http.js";
+import { createBackup, listBackups, restoreBackup } from "../services/backups.js";
+import { findOrphanUploads, removeOrphanUploads } from "../services/uploadLifecycle.js";
 
 export const dataRouter = Router();
+
+dataRouter.get(
+  "/backups",
+  asyncHandler(async (_req, res) => {
+    res.json({ items: await listBackups() });
+  })
+);
+
+dataRouter.post(
+  "/backups",
+  asyncHandler(async (_req, res) => {
+    res.status(201).json({ backup: await createBackup() });
+  })
+);
+
+dataRouter.post(
+  "/backups/:name/restore",
+  asyncHandler(async (req, res) => {
+    res.json(await restoreBackup(String(req.params.name)));
+  })
+);
+
+dataRouter.get(
+  "/uploads/orphans",
+  asyncHandler(async (_req, res) => {
+    res.json({ items: await findOrphanUploads() });
+  })
+);
+
+dataRouter.delete(
+  "/uploads/orphans",
+  asyncHandler(async (_req, res) => {
+    const removed = await removeOrphanUploads();
+    res.json({ removed, count: removed.length });
+  })
+);
 
 dataRouter.get(
   "/summary",
