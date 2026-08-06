@@ -38,7 +38,7 @@ export type ImportJobRow = {
 };
 
 const outputLimit = 30_000;
-const importDataRoot = path.join(config.repoRoot, "data/local/imports");
+const importDataRoot = config.importDir;
 const activeJobs = new Map<number, { controller: AbortController; child?: ChildProcess }>();
 
 type ResolvedImportJobOptions = ImportJobOptions & { inputPath?: string | null };
@@ -175,7 +175,7 @@ async function runImportJob(job: ImportJobRow, options: ResolvedImportJobOptions
 
     const python = pythonCommand();
     const child = spawn(python.command, [...python.prefixArgs, ...buildJobArgs(options)], {
-      cwd: config.repoRoot,
+      cwd: config.resourceRoot,
       windowsHide: true
     });
     const active = activeJobs.get(job.id);
@@ -246,7 +246,7 @@ async function ensureImportInput(
     await downloadDefaultDataset(jobId, source, updateStdout, signal);
   }
   if (!fs.existsSync(options.inputPath)) {
-    const relativePath = path.relative(config.repoRoot, options.inputPath);
+    const relativePath = path.relative(config.importDir, options.inputPath);
     throw new Error(`Missing ${source?.label ?? "import file"}. Save it at ${relativePath} and start the import again.`);
   }
 }
@@ -259,7 +259,7 @@ async function downloadDefaultDataset(
 ) {
   if (!source.url) return;
   await mkdir(path.dirname(source.inputPath), { recursive: true });
-  const relativePath = path.relative(config.repoRoot, source.inputPath);
+  const relativePath = path.relative(config.importDir, source.inputPath);
   updateStdout(`Downloading ${source.label} to ${relativePath}\n`);
 
   const timeoutController = new AbortController();
@@ -313,7 +313,7 @@ function scriptFor(jobType: ImportJobType) {
     sentence_examples: "scripts/import_sentence_examples.py",
     kanji_graph: "scripts/build_kanji_graph.py"
   };
-  return path.join(config.repoRoot, scripts[jobType]);
+  return path.join(config.scriptDir, path.basename(scripts[jobType]));
 }
 
 function pythonCommand() {

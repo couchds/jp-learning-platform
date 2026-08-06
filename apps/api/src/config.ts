@@ -3,9 +3,11 @@ import { fileURLToPath } from "node:url";
 import { virtualEnvPythonPath } from "./services/pythonRuntime.js";
 
 const apiDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(apiDir, "../../..");
-const overlayRoot = path.join(repoRoot, "services/desktop-overlay");
-const ocrRoot = path.join(repoRoot, "services/ocr");
+const sourceRepoRoot = path.resolve(apiDir, "../../..");
+const resourceRoot = path.resolve(process.env.YOMUNAMI_RESOURCE_ROOT ?? sourceRepoRoot);
+const dataRoot = path.resolve(process.env.YOMUNAMI_DATA_ROOT ?? path.join(resourceRoot, "data/local"));
+const overlayRoot = path.join(resourceRoot, "services/desktop-overlay");
+const ocrRoot = path.join(resourceRoot, "services/ocr");
 const defaultOverlayScriptPath = path.join(overlayRoot, "overlay.py");
 const defaultOverlayPythonPath = virtualEnvPythonPath(overlayRoot);
 const defaultOverlayAppPath = path.join(overlayRoot, "dist/Yomunami OCR Overlay.app");
@@ -42,7 +44,7 @@ function serviceScriptPathFromEnv(value: string | undefined, fallback: string, s
   const relative = path.relative(serviceRoot, resolved);
 
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(`${envName} must point inside ${path.relative(repoRoot, serviceRoot)}`);
+    throw new Error(`${envName} must point inside ${path.relative(resourceRoot, serviceRoot)}`);
   }
 
   return resolved;
@@ -51,12 +53,17 @@ function serviceScriptPathFromEnv(value: string | undefined, fallback: string, s
 export const config = {
   productVersion: "0.6.1",
   env: process.env.NODE_ENV ?? "development",
-  repoRoot,
+  repoRoot: resourceRoot,
+  resourceRoot,
+  dataRoot,
+  importDir: path.resolve(process.env.IMPORT_DIR ?? path.join(dataRoot, "imports")),
+  scriptDir: path.join(resourceRoot, "scripts"),
   host: process.env.API_HOST ?? "127.0.0.1",
   port: Number.parseInt(process.env.API_PORT ?? "3001", 10),
-  databasePath: process.env.DATABASE_PATH ?? path.join(repoRoot, "data/local/app.sqlite"),
-  uploadDir: process.env.UPLOAD_DIR ?? path.join(repoRoot, "uploads"),
-  backupDir: process.env.BACKUP_DIR ?? path.join(repoRoot, "data/local/backups"),
+  databasePath: process.env.DATABASE_PATH ?? path.join(dataRoot, "app.sqlite"),
+  uploadDir: process.env.UPLOAD_DIR ?? path.join(resourceRoot, "uploads"),
+  backupDir: process.env.BACKUP_DIR ?? path.join(dataRoot, "backups"),
+  desktopAuthToken: process.env.YOMUNAMI_DESKTOP_AUTH_TOKEN?.trim() || null,
   allowedOrigins: listFromEnv(process.env.API_ALLOWED_ORIGINS, [
     "http://127.0.0.1:5173",
     "http://localhost:5173",

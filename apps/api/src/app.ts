@@ -38,6 +38,14 @@ export function createApp() {
   }));
   app.use(express.json({ limit: "2mb" }));
 
+  app.use("/api", (req, res, next) => {
+    if (!config.desktopAuthToken || req.get("x-yomunami-token") === config.desktopAuthToken) {
+      next();
+      return;
+    }
+    res.status(401).json({ error: "Desktop API authentication failed" });
+  });
+
   if (config.enableRequestLogging) {
     app.use((req, _res, next) => {
       console.log(`${req.method} ${req.path}`);

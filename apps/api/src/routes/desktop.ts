@@ -67,7 +67,7 @@ desktopRouter.post(
 
     const webUrl = req.get("origin") ?? config.webAppUrl;
     const child = spawn(launchTarget.command, launchTarget.args, {
-      cwd: config.repoRoot,
+      cwd: config.resourceRoot,
       detached: true,
       stdio: ["ignore", "ignore", "pipe"],
       windowsHide: true,
