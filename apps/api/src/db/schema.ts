@@ -335,6 +335,159 @@ const migrations: Array<{ id: number; name: string; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_import_jobs_status ON import_jobs(status, created_at);
       CREATE INDEX IF NOT EXISTS idx_import_jobs_type ON import_jobs(job_type, created_at);
     `
+  },
+  {
+    id: 6,
+    name: "fts_search_indexes",
+    sql: `
+      CREATE VIRTUAL TABLE IF NOT EXISTS kanji_search USING fts5(
+        kanji_id UNINDEXED, literal, on_readings, kun_readings, meanings, tokenize = 'unicode61'
+      );
+      CREATE VIRTUAL TABLE IF NOT EXISTS dictionary_search USING fts5(
+        entry_id UNINDEXED, kanji_forms, readings, glosses, tokenize = 'unicode61'
+      );
+      CREATE VIRTUAL TABLE IF NOT EXISTS sentence_search USING fts5(
+        sentence_id UNINDEXED, japanese, reading, english, tokenize = 'unicode61'
+      );
+
+      INSERT INTO kanji_search (kanji_id, literal, on_readings, kun_readings, meanings)
+      SELECT id, literal, on_readings_json, kun_readings_json, meanings_json FROM kanji;
+      INSERT INTO dictionary_search (entry_id, kanji_forms, readings, glosses)
+      SELECT d.id,
+        COALESCE((SELECT GROUP_CONCAT(kanji, ' ') FROM entry_kanji WHERE entry_id = d.id), ''),
+        COALESCE((SELECT GROUP_CONCAT(reading, ' ') FROM entry_readings WHERE entry_id = d.id), ''),
+        COALESCE((SELECT GROUP_CONCAT(sg.gloss, ' ') FROM entry_senses es JOIN sense_glosses sg ON sg.sense_id = es.id WHERE es.entry_id = d.id), '')
+      FROM dictionary_entries d;
+      INSERT INTO sentence_search (sentence_id, japanese, reading, english)
+      SELECT id, japanese, COALESCE(reading, ''), COALESCE(english, '') FROM sentence_examples;
+
+      CREATE TRIGGER kanji_search_insert AFTER INSERT ON kanji BEGIN
+        INSERT INTO kanji_search VALUES (new.id, new.literal, new.on_readings_json, new.kun_readings_json, new.meanings_json);
+      END;
+      CREATE TRIGGER kanji_search_update AFTER UPDATE ON kanji BEGIN
+        DELETE FROM kanji_search WHERE kanji_id = old.id;
+        INSERT INTO kanji_search VALUES (new.id, new.literal, new.on_readings_json, new.kun_readings_json, new.meanings_json);
+      END;
+      CREATE TRIGGER kanji_search_delete AFTER DELETE ON kanji BEGIN
+        DELETE FROM kanji_search WHERE kanji_id = old.id;
+      END;
+
+      CREATE TRIGGER dictionary_search_entry_insert AFTER INSERT ON dictionary_entries BEGIN
+        INSERT INTO dictionary_search VALUES (new.id, '', '', '');
+      END;
+      CREATE TRIGGER dictionary_search_entry_delete AFTER DELETE ON dictionary_entries BEGIN
+        DELETE FROM dictionary_search WHERE entry_id = old.id;
+      END;
+      CREATE TRIGGER dictionary_search_kanji_insert AFTER INSERT ON entry_kanji BEGIN
+        DELETE FROM dictionary_search WHERE entry_id = new.entry_id;
+        INSERT INTO dictionary_search SELECT d.id,
+          COALESCE((SELECT GROUP_CONCAT(kanji, ' ') FROM entry_kanji WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(reading, ' ') FROM entry_readings WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(sg.gloss, ' ') FROM entry_senses es JOIN sense_glosses sg ON sg.sense_id=es.id WHERE es.entry_id=d.id), '')
+        FROM dictionary_entries d WHERE d.id=new.entry_id;
+      END;
+      CREATE TRIGGER dictionary_search_kanji_delete AFTER DELETE ON entry_kanji BEGIN
+        DELETE FROM dictionary_search WHERE entry_id = old.entry_id;
+        INSERT INTO dictionary_search SELECT d.id,
+          COALESCE((SELECT GROUP_CONCAT(kanji, ' ') FROM entry_kanji WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(reading, ' ') FROM entry_readings WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(sg.gloss, ' ') FROM entry_senses es JOIN sense_glosses sg ON sg.sense_id=es.id WHERE es.entry_id=d.id), '')
+        FROM dictionary_entries d WHERE d.id=old.entry_id;
+      END;
+      CREATE TRIGGER dictionary_search_reading_insert AFTER INSERT ON entry_readings BEGIN
+        DELETE FROM dictionary_search WHERE entry_id = new.entry_id;
+        INSERT INTO dictionary_search SELECT d.id,
+          COALESCE((SELECT GROUP_CONCAT(kanji, ' ') FROM entry_kanji WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(reading, ' ') FROM entry_readings WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(sg.gloss, ' ') FROM entry_senses es JOIN sense_glosses sg ON sg.sense_id=es.id WHERE es.entry_id=d.id), '')
+        FROM dictionary_entries d WHERE d.id=new.entry_id;
+      END;
+      CREATE TRIGGER dictionary_search_reading_delete AFTER DELETE ON entry_readings BEGIN
+        DELETE FROM dictionary_search WHERE entry_id = old.entry_id;
+        INSERT INTO dictionary_search SELECT d.id,
+          COALESCE((SELECT GROUP_CONCAT(kanji, ' ') FROM entry_kanji WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(reading, ' ') FROM entry_readings WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(sg.gloss, ' ') FROM entry_senses es JOIN sense_glosses sg ON sg.sense_id=es.id WHERE es.entry_id=d.id), '')
+        FROM dictionary_entries d WHERE d.id=old.entry_id;
+      END;
+      CREATE TRIGGER dictionary_search_gloss_insert AFTER INSERT ON sense_glosses BEGIN
+        DELETE FROM dictionary_search WHERE entry_id = (SELECT entry_id FROM entry_senses WHERE id=new.sense_id);
+        INSERT INTO dictionary_search SELECT d.id,
+          COALESCE((SELECT GROUP_CONCAT(kanji, ' ') FROM entry_kanji WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(reading, ' ') FROM entry_readings WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(sg.gloss, ' ') FROM entry_senses es JOIN sense_glosses sg ON sg.sense_id=es.id WHERE es.entry_id=d.id), '')
+        FROM dictionary_entries d WHERE d.id=(SELECT entry_id FROM entry_senses WHERE id=new.sense_id);
+      END;
+      CREATE TRIGGER dictionary_search_gloss_delete AFTER DELETE ON sense_glosses BEGIN
+        DELETE FROM dictionary_search WHERE entry_id = (SELECT entry_id FROM entry_senses WHERE id=old.sense_id);
+        INSERT INTO dictionary_search SELECT d.id,
+          COALESCE((SELECT GROUP_CONCAT(kanji, ' ') FROM entry_kanji WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(reading, ' ') FROM entry_readings WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(sg.gloss, ' ') FROM entry_senses es JOIN sense_glosses sg ON sg.sense_id=es.id WHERE es.entry_id=d.id), '')
+        FROM dictionary_entries d WHERE d.id=(SELECT entry_id FROM entry_senses WHERE id=old.sense_id);
+      END;
+      CREATE TRIGGER dictionary_search_sense_delete AFTER DELETE ON entry_senses BEGIN
+        DELETE FROM dictionary_search WHERE entry_id = old.entry_id;
+        INSERT INTO dictionary_search SELECT d.id,
+          COALESCE((SELECT GROUP_CONCAT(kanji, ' ') FROM entry_kanji WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(reading, ' ') FROM entry_readings WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(sg.gloss, ' ') FROM entry_senses es JOIN sense_glosses sg ON sg.sense_id=es.id WHERE es.entry_id=d.id), '')
+        FROM dictionary_entries d WHERE d.id=old.entry_id;
+      END;
+
+      CREATE TRIGGER sentence_search_insert AFTER INSERT ON sentence_examples BEGIN
+        INSERT INTO sentence_search VALUES (new.id, new.japanese, COALESCE(new.reading, ''), COALESCE(new.english, ''));
+      END;
+      CREATE TRIGGER sentence_search_update AFTER UPDATE ON sentence_examples BEGIN
+        DELETE FROM sentence_search WHERE sentence_id = old.id;
+        INSERT INTO sentence_search VALUES (new.id, new.japanese, COALESCE(new.reading, ''), COALESCE(new.english, ''));
+      END;
+      CREATE TRIGGER sentence_search_delete AFTER DELETE ON sentence_examples BEGIN
+        DELETE FROM sentence_search WHERE sentence_id = old.id;
+      END;
+    `
+  },
+  {
+    id: 7,
+    name: "review_suspension",
+    sql: `
+      ALTER TABLE user_knowledge ADD COLUMN suspended_at TEXT;
+      CREATE INDEX IF NOT EXISTS idx_user_knowledge_due ON user_knowledge(suspended_at, next_review_at);
+    `
+  },
+  {
+    id: 8,
+    name: "fts_update_triggers",
+    sql: `
+      CREATE TRIGGER dictionary_search_kanji_update AFTER UPDATE ON entry_kanji BEGIN
+        DELETE FROM dictionary_search WHERE entry_id IN (old.entry_id, new.entry_id);
+        INSERT INTO dictionary_search SELECT d.id,
+          COALESCE((SELECT GROUP_CONCAT(kanji, ' ') FROM entry_kanji WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(reading, ' ') FROM entry_readings WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(sg.gloss, ' ') FROM entry_senses es JOIN sense_glosses sg ON sg.sense_id=es.id WHERE es.entry_id=d.id), '')
+        FROM dictionary_entries d WHERE d.id IN (old.entry_id, new.entry_id);
+      END;
+      CREATE TRIGGER dictionary_search_reading_update AFTER UPDATE ON entry_readings BEGIN
+        DELETE FROM dictionary_search WHERE entry_id IN (old.entry_id, new.entry_id);
+        INSERT INTO dictionary_search SELECT d.id,
+          COALESCE((SELECT GROUP_CONCAT(kanji, ' ') FROM entry_kanji WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(reading, ' ') FROM entry_readings WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(sg.gloss, ' ') FROM entry_senses es JOIN sense_glosses sg ON sg.sense_id=es.id WHERE es.entry_id=d.id), '')
+        FROM dictionary_entries d WHERE d.id IN (old.entry_id, new.entry_id);
+      END;
+      CREATE TRIGGER dictionary_search_gloss_update AFTER UPDATE ON sense_glosses BEGIN
+        DELETE FROM dictionary_search WHERE entry_id IN (
+          SELECT entry_id FROM entry_senses WHERE id IN (old.sense_id, new.sense_id)
+        );
+        INSERT INTO dictionary_search SELECT d.id,
+          COALESCE((SELECT GROUP_CONCAT(kanji, ' ') FROM entry_kanji WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(reading, ' ') FROM entry_readings WHERE entry_id=d.id), ''),
+          COALESCE((SELECT GROUP_CONCAT(sg.gloss, ' ') FROM entry_senses es JOIN sense_glosses sg ON sg.sense_id=es.id WHERE es.entry_id=d.id), '')
+        FROM dictionary_entries d WHERE d.id IN (
+          SELECT entry_id FROM entry_senses WHERE id IN (old.sense_id, new.sense_id)
+        );
+      END;
+    `
   }
 ];
 

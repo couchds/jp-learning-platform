@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getDb, readJson } from "../db/index.js";
 import { mapWordSummary, type WordSummaryRow } from "../db/mappers.js";
 import { asyncHandler, HttpError, parseLimitOffset } from "../lib/http.js";
+import { buildFtsQuery } from "../services/search.js";
 
 export const wordsRouter = Router();
 
@@ -53,50 +54,57 @@ wordsRouter.get(
   "/",
   asyncHandler((req, res) => {
     const { limit, offset } = parseLimitOffset(req.query);
-    const params: unknown[] = [];
-    let where = "";
-
     if (req.query.search) {
-      const searchTerms = wordSearchTerms(String(req.query.search));
-      const searchClauses = searchTerms
-        .map(
-          () => "ek2.kanji LIKE ? OR er2.reading LIKE ? OR sg2.gloss LIKE ?"
-        )
-        .join(" OR ");
-      where = `
-        WHERE d.id IN (
-          SELECT d2.id
-          FROM dictionary_entries d2
-          LEFT JOIN entry_kanji ek2 ON ek2.entry_id = d2.id
-          LEFT JOIN entry_readings er2 ON er2.entry_id = d2.id
-          LEFT JOIN entry_senses es2 ON es2.entry_id = d2.id
-          LEFT JOIN sense_glosses sg2 ON sg2.sense_id = es2.id
-          WHERE ${searchClauses}
-        )
-      `;
-      for (const term of searchTerms) {
-        const search = `%${term}%`;
-        params.push(search, search, search);
+      const query = buildFtsQuery(wordSearchTerms(String(req.query.search)));
+      if (query) {
+        const db = getDb();
+        const normalized = String(req.query.search).normalize("NFKC").trim().toLocaleLowerCase();
+        const prefix = `${normalized}%`;
+        const matches = db
+          .prepare(
+            `SELECT CAST(entry_id AS INTEGER) AS id
+             FROM dictionary_search
+             WHERE dictionary_search MATCH ?
+             ORDER BY CASE
+               WHEN lower(kanji_forms) = ? OR lower(readings) = ? OR lower(glosses) = ? THEN 0
+               WHEN lower(kanji_forms) LIKE ? OR lower(readings) LIKE ? OR lower(glosses) LIKE ? THEN 1
+               ELSE 2 END,
+               bm25(dictionary_search), CAST(entry_id AS INTEGER)
+             LIMIT ? OFFSET ?`
+          )
+          .all(query, normalized, normalized, normalized, prefix, prefix, prefix, limit, offset) as Array<{ id: number }>;
+        const total = db
+          .prepare("SELECT COUNT(*) AS count FROM dictionary_search WHERE dictionary_search MATCH ?")
+          .get(query) as { count: number };
+        if (matches.length === 0) {
+          res.json({ items: [], page: { limit, offset, total: total.count } });
+          return;
+        }
+        const ids = matches.map((match) => match.id);
+        const rows = db
+          .prepare(`${wordSummarySql} WHERE d.id IN (${ids.map(() => "?").join(",")}) GROUP BY d.id`)
+          .all(...ids) as WordSummaryRow[];
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        res.json({
+          items: ids.map((id) => byId.get(id)).filter((row): row is WordSummaryRow => Boolean(row)).map(mapWordSummary),
+          page: { limit, offset, total: total.count }
+        });
+        return;
       }
     }
 
     const rows = getDb()
       .prepare(
         `${wordSummarySql}
-         ${where}
          GROUP BY d.id
          ORDER BY d.entry_id
          LIMIT ? OFFSET ?`
       )
-      .all(...params, limit, offset) as WordSummaryRow[];
+      .all(limit, offset) as WordSummaryRow[];
 
     const total = getDb()
-      .prepare(
-        `SELECT COUNT(DISTINCT d.id) AS count
-         FROM dictionary_entries d
-         ${where}`
-      )
-      .get(...params) as { count: number };
+      .prepare("SELECT COUNT(*) AS count FROM dictionary_entries")
+      .get() as { count: number };
 
     res.json({
       items: rows.map(mapWordSummary),
