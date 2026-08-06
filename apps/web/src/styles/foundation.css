@@ -14,14 +14,14 @@
   --ink: #073042;
   --muted-ink: #58717a;
   --line: #b8e4e2;
-  --panel: rgba(255, 255, 255, 0.86);
-  --panel-strong: rgba(255, 255, 255, 0.94);
-  --surface-border: rgba(156, 216, 214, 0.82);
-  --shadow-soft: 0 12px 34px rgba(4, 47, 67, 0.08);
-  --shadow-panel: 0 18px 48px rgba(4, 47, 67, 0.1);
+  --panel: #ffffff;
+  --panel-strong: #ffffff;
+  --surface-border: #cfe0df;
+  --shadow-soft: 0 6px 18px rgba(4, 47, 67, 0.06);
+  --shadow-panel: 0 8px 24px rgba(4, 47, 67, 0.07);
   --shadow-deep: 0 24px 70px rgba(4, 47, 67, 0.18);
   --content-max: 1500px;
-  background: #ecfbfa;
+  background: #f4f7f6;
   color: var(--ink);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -35,9 +35,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    linear-gradient(140deg, rgba(223, 248, 245, 0.94), rgba(255, 248, 236, 0.7) 46%, rgba(205, 239, 248, 0.9)),
-    #ecfbfa;
+  background: #f4f7f6;
 }
 
 button,
@@ -86,28 +84,10 @@ textarea:focus-visible {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: 228px minmax(0, 1fr);
   position: relative;
   isolation: isolate;
   overflow-x: hidden;
-}
-
-.app-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    repeating-linear-gradient(
-      110deg,
-      rgba(10, 166, 166, 0.08) 0,
-      rgba(10, 166, 166, 0.08) 2px,
-      transparent 2px,
-      transparent 44px
-    ),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 34%);
-  background-size: 360px 100%, 100% 100%;
 }
 
 .sidebar {
@@ -116,32 +96,14 @@ textarea:focus-visible {
   z-index: 1;
   overflow-x: hidden;
   overflow-y: auto;
-  background:
-    linear-gradient(180deg, rgba(4, 47, 67, 0.98), rgba(5, 69, 85, 0.98)),
-    var(--deep-ocean);
+  background: #123d49;
   color: var(--foam);
   padding: 18px 16px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   height: 100vh;
-  box-shadow: 14px 0 40px rgba(4, 47, 67, 0.18);
-}
-
-.sidebar::before {
-  content: "";
-  position: absolute;
-  inset: 0 -36px auto auto;
-  height: 100%;
-  width: 170px;
-  pointer-events: none;
-  background:
-    repeating-radial-gradient(
-      ellipse at 100% 50%,
-      rgba(255, 255, 255, 0.14) 0 1px,
-      transparent 2px 36px
-  );
-  opacity: 0.35;
+  box-shadow: 8px 0 24px rgba(4, 47, 67, 0.12);
 }
 
 .brand {
@@ -157,8 +119,7 @@ textarea:focus-visible {
   height: 44px;
   display: grid;
   place-items: center;
-  background:
-    linear-gradient(145deg, var(--sun-coral), var(--sun-gold));
+  background: var(--sun-gold);
   color: #082f42;
   border-radius: 8px;
   font-weight: 800;
@@ -179,7 +140,7 @@ textarea:focus-visible {
 
 .nav-list {
   display: grid;
-  gap: 12px;
+  gap: 5px;
 }
 
 .nav-section {
@@ -223,8 +184,7 @@ textarea:focus-visible {
 
 .nav-button:hover,
 .nav-button.active {
-  background:
-    linear-gradient(90deg, rgba(10, 166, 166, 0.24), rgba(255, 200, 87, 0.16));
+  background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
 }
 
@@ -255,7 +215,7 @@ textarea:focus-visible {
   z-index: 1;
   min-width: 0;
   width: 100%;
-  max-width: var(--content-max);
+  max-width: 1260px;
   margin: 0 auto;
   padding: 28px;
 }
@@ -290,8 +250,8 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-size: clamp(2rem, 3.2vw, 3rem);
-  line-height: 1;
+  font-size: 2.15rem;
+  line-height: 1.1;
 }
 
 h2 {

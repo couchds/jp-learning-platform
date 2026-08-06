@@ -1,62 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Activity,
-  BookOpen,
-  Boxes,
-  Brain,
-  CheckCircle2,
-  ClipboardList,
-  Crosshair,
-  Database,
-  FileImage,
-  Gauge,
-  Home,
-  Keyboard,
-  Mic,
-  Monitor,
-  Pencil,
-  Play,
-  Plus,
-  RotateCcw,
-  Save,
-  Search,
-  Sparkles,
-  Target,
-  Trophy,
-  Upload,
-  Wrench,
-  X
-} from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { api } from "../api";
-import {
-  EventSourceBars,
-  KanjiKnowledgeNetwork,
-  KanjiXpTimeline,
-  KnowledgeCompositionDonut,
-  TopKanjiBarChart
-} from "../KnowledgeVisuals";
-import type {
-  DataSummary,
-  Dashboard,
-  DesktopOverlayStatus,
-  ImportJob,
-  Kanji,
-  KanjiGraph,
-  KnowledgeItem,
-  KnowledgeSummary,
-  OcrResult,
-  QuizAnswerPayload,
-  QuizQuestion,
-  QuizSession,
-  RecognitionResult,
-  Resource,
-  ResourceDetail,
-  ResourceTerm,
-  RuntimeDoctor,
-  SentenceExample,
-  ServiceHealth,
-  Word
-} from "../types";
+import type { Dashboard, ImportJob, Word } from "../types";
 
 export type View =
   | "home"
@@ -71,6 +15,7 @@ export type View =
   | "lookup"
   | "draw"
   | "speech"
+  | "settings"
   | "review";
 
 export type Loadable<T> = {
@@ -78,8 +23,6 @@ export type Loadable<T> = {
   loading: boolean;
   error: string | null;
 };
-
-type NavItem = { id: View; label: string; icon: typeof Gauge };
 
 export const emptyDashboard: Dashboard = {
   counts: {
@@ -92,86 +35,6 @@ export const emptyDashboard: Dashboard = {
   },
   recentResources: []
 };
-
-const navGroups: Array<{ label: string; items: NavItem[] }> = [
-  {
-    label: "Overview",
-    items: [
-      { id: "home", label: "Home", icon: Home },
-      { id: "dashboard", label: "Dashboard", icon: Gauge },
-      { id: "profile", label: "Profile", icon: Brain }
-    ]
-  },
-  {
-    label: "Library",
-    items: [
-      { id: "database", label: "Database", icon: Database },
-      { id: "resources", label: "Resources", icon: Boxes },
-      { id: "lookup", label: "Lookup", icon: Search }
-    ]
-  },
-  {
-    label: "Practice",
-    items: [
-      { id: "capture", label: "Capture", icon: Crosshair },
-      { id: "tracker", label: "Tracker", icon: ClipboardList },
-      { id: "quiz", label: "Quiz", icon: Trophy }
-    ]
-  },
-  {
-    label: "Tools",
-    items: [
-      { id: "runtime", label: "Runtime", icon: Wrench },
-      { id: "draw", label: "Draw", icon: Pencil },
-      { id: "speech", label: "Speech", icon: Mic }
-    ]
-  }
-];
-
-const navItems = navGroups.flatMap((group) => group.items);
-
-const viewRoutes: Record<View, string> = {
-  home: "/",
-  dashboard: "/dashboard",
-  database: "/database",
-  profile: "/profile",
-  capture: "/capture",
-  runtime: "/runtime",
-  resources: "/resources",
-  tracker: "/tracker",
-  quiz: "/quiz",
-  lookup: "/lookup",
-  draw: "/draw",
-  speech: "/speech",
-  review: "/review"
-};
-
-const routeViews = new Map(Object.entries(viewRoutes).map(([view, path]) => [path, view as View]));
-
-function viewFromPath(pathname: string): View {
-  return routeViews.get(pathname) ?? "home";
-}
-
-function navigateToView(view: View) {
-  window.location.assign(viewRoutes[view]);
-}
-
-const viewSummaries: Record<View, string> = {
-  home: "Capture, collect, and review from your study workspace.",
-  dashboard: "A quick read on resources, captures, and reviews.",
-  database: "Browse imported kanji, words, sentences, and relation data.",
-  profile: "Track knowledge growth, XP, and kanji relationships.",
-  capture: "Run OCR tools and attach captures to study resources.",
-  runtime: "Check service readiness, platform permissions, and companion tools.",
-  resources: "Create and organize the media you are studying from.",
-  tracker: "Add dictionary-backed words or custom terms to a resource.",
-  quiz: "Practice resource vocabulary with quick recall sessions.",
-  lookup: "Search kanji and word data, then mark what you know.",
-  draw: "Draw kanji and inspect recognition candidates.",
-  speech: "Inspect pronunciation tooling and training commands.",
-  review: "Work through vocabulary and kanji that are due now."
-};
-
 
 export type DatabaseTab = "words" | "kanji" | "sentences" | "graph";
 export type KanjiLevelFilter = 5 | 4 | 3 | 2 | 1;

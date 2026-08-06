@@ -39,8 +39,10 @@ describe("critical routed view states", () => {
   });
 
   it("keeps capture usable when local companion services are unavailable", async () => {
-    render(<CaptureView onChange={() => undefined} onNavigate={() => undefined} />);
-    expect(await screen.findByText("Screenshot OCR")).toBeInTheDocument();
+    render(<CaptureView onChange={() => undefined} />);
+    expect(await screen.findByText("Upload a screenshot")).toBeInTheDocument();
     expect(screen.getByText("Choose image")).toBeInTheDocument();
+    expect(screen.queryByText("Start OCR service")).not.toBeInTheDocument();
+    expect(screen.queryByText("Launch overlay")).not.toBeInTheDocument();
   });
 });
