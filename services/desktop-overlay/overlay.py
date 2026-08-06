@@ -30,6 +30,10 @@ CONFIG_PATH = Path.home() / ".yomunami-overlay.json"
 LOG_PATH = Path.home() / ".yomunami-overlay.log"
 DEFAULT_API_URL = os.environ.get("YOMUNAMI_API_URL", "http://127.0.0.1:3001")
 DEFAULT_WEB_URL = os.environ.get("YOMUNAMI_WEB_URL", "http://127.0.0.1:5173")
+API_TOKEN = os.environ.get("YOMUNAMI_API_TOKEN", "")
+COMMAND_FILE = Path(os.environ["YOMUNAMI_COMMAND_FILE"]) if os.environ.get("YOMUNAMI_COMMAND_FILE") else None
+DISABLE_HOTKEY = os.environ.get("YOMUNAMI_DISABLE_HOTKEY", "").lower() in {"1", "true", "yes"}
+START_HIDDEN = os.environ.get("YOMUNAMI_START_HIDDEN", "").lower() in {"1", "true", "yes"}
 DEFAULT_HOTKEY = "ctrl+shift+o"
 UI_FONT = "Segoe UI" if sys.platform == "win32" else "TkDefaultFont"
 JP_FONT = "Yu Gothic UI" if sys.platform == "win32" else "TkDefaultFont"
@@ -41,6 +45,7 @@ REVIEW_SURFACE_ALT = "#fffbf4"
 REVIEW_TEXT = "#1b201f"
 REVIEW_MUTED = "#67706c"
 REVIEW_BORDER = "#d9d0c3"
+REVIEW_PANEL_DARK = "#17231f"
 REVIEW_PRIMARY = "#19b394"
 REVIEW_PRIMARY_DARK = "#0f6d60"
 REVIEW_ACCENT = "#f0b84b"
@@ -53,6 +58,10 @@ def log_debug(message: str) -> None:
             log_file.write(f"{message}\n")
     except Exception:
         return
+
+
+def api_headers() -> dict[str, str]:
+    return {"x-yomunami-token": API_TOKEN} if API_TOKEN else {}
 
 
 def image_looks_blank(image: Image.Image) -> bool:
@@ -143,7 +152,7 @@ class OverlayApp:
         self.root.minsize(640, 520)
 
         self.config = self.load_config()
-        self.api_url = tk.StringVar(value=self.config.get("api_url", DEFAULT_API_URL))
+        self.api_url = tk.StringVar(value=os.environ.get("YOMUNAMI_API_URL") or self.config.get("api_url", DEFAULT_API_URL))
         self.web_url = tk.StringVar(value=os.environ.get("YOMUNAMI_WEB_URL") or self.config.get("web_url", DEFAULT_WEB_URL))
         self.hotkey = tk.StringVar(value=self.config.get("hotkey", DEFAULT_HOTKEY))
         self.status = tk.StringVar(value="Ready")
@@ -162,6 +171,7 @@ class OverlayApp:
         self.hotkey_listener: keyboard.GlobalHotKeys | None = None
         self.hotkey_lock = threading.Lock()
         self.hotkey_setup_generation = 0
+        self.last_command_request = 0
 
         self.build_ui()
         self.root.after(50, self.startup)
@@ -281,8 +291,28 @@ class OverlayApp:
 
     def startup(self) -> None:
         self.root.update_idletasks()
+        if START_HIDDEN:
+            self.root.withdraw()
         self.refresh_resources()
-        self.root.after(250, self.start_hotkey_listener_async)
+        if DISABLE_HOTKEY:
+            self.status.set("Capture shortcut is managed by Yomunami")
+        else:
+            self.root.after(250, self.start_hotkey_listener_async)
+        if COMMAND_FILE is not None:
+            self.root.after(250, self.poll_command_file)
+
+    def poll_command_file(self) -> None:
+        try:
+            if COMMAND_FILE is not None and COMMAND_FILE.exists():
+                payload = json.loads(COMMAND_FILE.read_text(encoding="utf-8"))
+                requested_at = int(payload.get("requestedAt") or 0)
+                if payload.get("command") == "capture" and requested_at > self.last_command_request:
+                    self.last_command_request = requested_at
+                    self.toggle_hotkey_capture()
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            log_debug(f"Could not read desktop command: {exc}")
+        finally:
+            self.root.after(250, self.poll_command_file)
 
     def apply_settings(self) -> None:
         self.save_config()
@@ -339,7 +369,15 @@ class OverlayApp:
         return "+".join(converted) if converted else "<ctrl>+<shift>+o"
 
     def hotkey_capture(self) -> None:
-        self.root.after(0, self.scan_screen)
+        self.root.after(0, self.toggle_hotkey_capture)
+
+    def toggle_hotkey_capture(self) -> None:
+        if self.screen_overlay is not None and self.screen_overlay.is_open():
+            self.screen_overlay.close(show_control_panel=False)
+            self.status.set(f"Overlay hidden. Press {self.hotkey.get().strip() or DEFAULT_HOTKEY} to scan again.")
+            return
+
+        self.scan_screen()
 
     def refresh_resources(self) -> None:
         self.status.set("Loading resources...")
@@ -348,7 +386,7 @@ class OverlayApp:
 
     def load_resources_worker(self, api_url: str) -> None:
         try:
-            response = requests.get(f"{api_url}/api/resources?limit=200", timeout=10)
+            response = requests.get(f"{api_url}/api/resources?limit=200", headers=api_headers(), timeout=10)
             response.raise_for_status()
             resources = [
                 Resource(id=int(item["id"]), name=str(item["name"]), type=str(item["type"]))
@@ -525,7 +563,7 @@ class OverlayApp:
         files = {"image": ("capture.png", buffer, "image/png")}
 
         try:
-            response = requests.post(f"{api_url}/api/ocr/image", files=files, timeout=120)
+            response = requests.post(f"{api_url}/api/ocr/image", files=files, headers=api_headers(), timeout=120)
             response.raise_for_status()
             payload = response.json()
             ocr = payload.get("ocr", payload)
@@ -695,6 +733,7 @@ class OverlayApp:
             response = requests.post(
                 f"{api_url}/api/resources/{resource_id}/terms/bulk",
                 json={"terms": selected},
+                headers=api_headers(),
                 timeout=20,
             )
             response.raise_for_status()
@@ -762,6 +801,8 @@ class ScreenReviewOverlay:
 
         self.status = tk.StringVar(value="Scanning screen...")
         self.selected_count = tk.StringVar(value="0 selected")
+        self.kanji_count = tk.StringVar(value="0 kanji")
+        self.word_count = tk.StringVar(value="0 words")
         self.build_ui()
         self.window.after(50, self.render_screen)
 
@@ -818,28 +859,42 @@ class ScreenReviewOverlay:
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.bind("<Configure>", lambda _event: self.render_screen())
 
-        side = tk.Frame(body, bg=REVIEW_SURFACE, width=382)
+        side = tk.Frame(body, bg=REVIEW_SURFACE, width=398)
         side.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 16), pady=(0, 16))
         side.pack_propagate(False)
 
-        side_header = tk.Frame(side, bg=REVIEW_SURFACE)
-        side_header.pack(fill=tk.X, padx=18, pady=(18, 8))
+        side_header = tk.Frame(side, bg=REVIEW_PANEL_DARK)
+        side_header.pack(fill=tk.X)
+        side_title = tk.Frame(side_header, bg=REVIEW_PANEL_DARK)
+        side_title.pack(fill=tk.X, padx=18, pady=(16, 10))
         tk.Label(
-            side_header,
+            side_title,
             text="Terms",
-            bg=REVIEW_SURFACE,
-            fg=REVIEW_TEXT,
+            bg=REVIEW_PANEL_DARK,
+            fg="#fff7eb",
             font=(UI_FONT, 17, "bold"),
         ).pack(side=tk.LEFT)
         tk.Label(
-            side_header,
+            side_title,
             textvariable=self.selected_count,
-            bg="#e8ded0",
-            fg="#4c5853",
+            bg=REVIEW_PRIMARY,
+            fg="#06221d",
             padx=10,
             pady=4,
             font=(UI_FONT, 9, "bold"),
         ).pack(side=tk.RIGHT)
+
+        summary = tk.Frame(side_header, bg=REVIEW_PANEL_DARK)
+        summary.pack(fill=tk.X, padx=18, pady=(0, 16))
+        self.summary_chip(summary, "Kanji", self.kanji_count, REVIEW_ACCENT).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.summary_chip(summary, "Words", self.word_count, REVIEW_PRIMARY).pack(
+            side=tk.LEFT,
+            fill=tk.X,
+            expand=True,
+            padx=8,
+        )
+        self.summary_chip(summary, "Total", self.selected_count, "#d8c8ff").pack(side=tk.LEFT, fill=tk.X, expand=True)
+
         tk.Label(
             side,
             text="Selected rows are saved to the resource chosen in the control panel.",
@@ -848,7 +903,13 @@ class ScreenReviewOverlay:
             wraplength=336,
             justify=tk.LEFT,
             font=(UI_FONT, 9),
-        ).pack(anchor=tk.W, padx=18, pady=(0, 12))
+        ).pack(anchor=tk.W, padx=18, pady=(16, 12))
+
+        legend = tk.Frame(side, bg=REVIEW_SURFACE)
+        legend.pack(fill=tk.X, padx=18, pady=(0, 10))
+        self.legend_dot(legend, REVIEW_ACCENT, "Kanji").pack(side=tk.LEFT)
+        self.legend_dot(legend, REVIEW_PRIMARY, "Words").pack(side=tk.LEFT, padx=(12, 0))
+        self.legend_dot(legend, "#e8ded0", "Kana / other").pack(side=tk.LEFT, padx=(12, 0))
 
         terms_box = tk.Frame(side, bg=REVIEW_SURFACE_ALT, highlightbackground=REVIEW_BORDER, highlightthickness=1)
         terms_box.pack(fill=tk.BOTH, expand=True, padx=18, pady=(0, 16))
@@ -863,7 +924,7 @@ class ScreenReviewOverlay:
             activestyle="none",
             relief=tk.FLAT,
             borderwidth=0,
-            font=(JP_FONT, 10),
+            font=(JP_FONT, 11),
             exportselection=False,
         )
         terms_scrollbar = tk.Scrollbar(terms_box, orient=tk.VERTICAL, command=self.terms_list.yview)
@@ -897,6 +958,35 @@ class ScreenReviewOverlay:
         )
         self.raw_text.pack(fill=tk.X)
         self.raw_text.insert("1.0", "Scanning...")
+
+    def summary_chip(self, parent: tk.Widget, label: str, value: tk.StringVar, accent: str) -> tk.Frame:
+        chip = tk.Frame(parent, bg="#22342f", highlightbackground="#304943", highlightthickness=1)
+        tk.Label(
+            chip,
+            text=label.upper(),
+            bg="#22342f",
+            fg="#9db0aa",
+            font=(UI_FONT, 8, "bold"),
+        ).pack(anchor=tk.W, padx=10, pady=(8, 0))
+        tk.Label(
+            chip,
+            textvariable=value,
+            bg="#22342f",
+            fg=accent,
+            font=(UI_FONT, 11, "bold"),
+        ).pack(anchor=tk.W, padx=10, pady=(1, 8))
+        return chip
+
+    def legend_dot(self, parent: tk.Widget, color: str, text: str) -> tk.Frame:
+        item = tk.Frame(parent, bg=REVIEW_SURFACE)
+        dot = tk.Canvas(item, width=9, height=9, bg=REVIEW_SURFACE, highlightthickness=0)
+        dot.create_oval(1, 1, 8, 8, fill=color, outline=color)
+        dot.pack(side=tk.LEFT, pady=2)
+        tk.Label(item, text=text, bg=REVIEW_SURFACE, fg=REVIEW_MUTED, font=(UI_FONT, 8, "bold")).pack(
+            side=tk.LEFT,
+            padx=(5, 0),
+        )
+        return item
 
     def overlay_button(self, parent: tk.Widget, text: str, command, variant: str) -> tk.Button:
         styles = {
@@ -937,25 +1027,32 @@ class ScreenReviewOverlay:
             if term.term_type in {"kanji", "word", "vocabulary", "phrase"}:
                 self.terms_list.selection_set(index)
         self.update_selected_count()
+        self.update_term_summary()
         self.render_screen()
 
     def show_error(self, message: str) -> None:
         self.loaded = True
+        self.terms = []
+        self.highlights = []
         self.status.set(f"OCR failed: {message}")
         self.raw_text.delete("1.0", tk.END)
         self.raw_text.insert("1.0", message)
         self.terms_list.delete(0, tk.END)
         self.update_selected_count()
+        self.update_term_summary()
         self.render_screen()
 
     def show_capture_problem(self, message: str) -> None:
         self.loaded = True
+        self.terms = []
+        self.highlights = []
         self.capture_problem = message
         self.status.set("Screen capture needs permission")
         self.raw_text.delete("1.0", tk.END)
         self.raw_text.insert("1.0", message)
         self.terms_list.delete(0, tk.END)
         self.update_selected_count()
+        self.update_term_summary()
         self.render_screen()
 
     def term_label(self, term: Term) -> str:
@@ -978,7 +1075,13 @@ class ScreenReviewOverlay:
     def update_selected_count(self) -> None:
         selected = len(self.terms_list.curselection())
         total = self.terms_list.size()
-        self.selected_count.set(f"{selected} of {total} selected" if total else "0 selected")
+        self.selected_count.set(f"{selected}/{total}" if total else "0")
+
+    def update_term_summary(self) -> None:
+        kanji = sum(1 for term in self.terms if term.term_type == "kanji")
+        words = sum(1 for term in self.terms if term.term_type in {"word", "vocabulary", "phrase"})
+        self.kanji_count.set(str(kanji))
+        self.word_count.set(str(words))
 
     def finish_add(self, message: str) -> None:
         self.saving = False
@@ -1148,6 +1251,9 @@ class ScreenReviewOverlay:
             self.window.destroy()
         self.root.update_idletasks()
         self.on_close(show_control_panel)
+
+    def is_open(self) -> bool:
+        return bool(self.window.winfo_exists())
 
 
 class RegionSelector:

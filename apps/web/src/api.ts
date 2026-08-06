@@ -23,8 +23,9 @@ import type {
   ServiceHealth,
   Word
 } from "./types";
+import { getDesktopRuntime } from "./desktop";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:3001";
+const WEB_API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:3001";
 
 function legacyKanjiJlptLevel(level: number) {
   const legacyLevels: Record<number, number> = {
@@ -50,12 +51,13 @@ class ApiRequestError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const runtime = await getDesktopRuntime();
+  const headers = new Headers(init?.headers);
+  if (!(init?.body instanceof FormData)) headers.set("content-type", "application/json");
+  if (runtime?.apiToken) headers.set("x-yomunami-token", runtime.apiToken);
+  const response = await fetch(`${runtime?.apiUrl ?? WEB_API_URL}${path}`, {
     ...init,
-    headers: init?.body instanceof FormData ? init.headers : {
-      "content-type": "application/json",
-      ...init?.headers
-    }
+    headers
   });
 
   const text = await response.text();
@@ -82,7 +84,7 @@ async function requestServiceHealth(path: string) {
 }
 
 export const api = {
-  apiUrl: API_URL,
+  apiUrl: WEB_API_URL,
   health: () => request<unknown>("/health"),
   dataSummary: () => request<DataSummary>("/api/data/summary"),
   dashboard: () => request<Dashboard>("/api/dashboard"),

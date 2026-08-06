@@ -1,0 +1,32 @@
+appId: com.yomunami.desktop
+productName: Yomunami
+directories:
+  output: release
+asar: true
+asarUnpack:
+  - node_modules/better-sqlite3/**/*
+files:
+  - out/**/*
+  - package.json
+protocols:
+  - name: Yomunami
+    schemes:
+      - yomunami
+win:
+  target:
+    - nsis
+  executableName: Yomunami
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.education
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Education
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}

@@ -9,6 +9,8 @@ build/
 coverage/
 .turbo/
 .vite/
+apps/desktop/out/
+apps/desktop/release/
 
 data/local/*
 !data/local/.gitkeep
