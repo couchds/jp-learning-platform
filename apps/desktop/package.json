@@ -1,7 +1,7 @@
 {
   "name": "@jp-learning-platform/desktop",
   "productName": "Yomunami",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Desktop companion for the Yomunami Japanese learning platform.",
   "author": "Yomunami",
   "private": true,
@@ -14,13 +14,15 @@
     "make": "npm run build && electron-builder",
     "rebuild:native": "electron-builder install-app-deps",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "npm run rebuild:native && npm run build && playwright test --config playwright.config.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@playwright/test": "^1.62.1",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "43.3.0",
     "electron-builder": "^26.15.3",

@@ -51,7 +51,7 @@ function serviceScriptPathFromEnv(value: string | undefined, fallback: string, s
 }
 
 export const config = {
-  productVersion: "0.6.1",
+  productVersion: "0.7.0",
   env: process.env.NODE_ENV ?? "development",
   repoRoot: resourceRoot,
   resourceRoot,

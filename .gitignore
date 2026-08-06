@@ -11,6 +11,10 @@ coverage/
 .vite/
 apps/desktop/out/
 apps/desktop/release/
+apps/desktop/test-results/
+apps/desktop/.sidecar-build/
+apps/desktop/sidecars/*
+!apps/desktop/sidecars/.gitkeep
 
 data/local/*
 !data/local/.gitkeep

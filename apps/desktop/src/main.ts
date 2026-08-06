@@ -117,7 +117,7 @@ async function createMainWindow() {
     backgroundColor: "#f4f7f5",
     title: "Yomunami",
     webPreferences: {
-      preload: path.join(__dirname, "../preload/preload.mjs"),
+      preload: path.join(__dirname, "../preload/preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true

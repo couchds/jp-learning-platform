@@ -5,7 +5,7 @@ from PyInstaller.utils.hooks import collect_submodules
 
 app_name = "Yomunami OCR Overlay"
 bundle_id = "com.yomunami.ocr-overlay"
-version = "0.6.0"
+version = "0.7.0"
 
 hiddenimports = (
     collect_submodules("pynput")

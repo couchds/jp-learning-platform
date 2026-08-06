@@ -2,12 +2,26 @@ appId: com.yomunami.desktop
 productName: Yomunami
 directories:
   output: release
+  buildResources: resources
 asar: true
 asarUnpack:
   - node_modules/better-sqlite3/**/*
 files:
   - out/**/*
   - package.json
+extraResources:
+  - from: sidecars
+    to: sidecars
+    filter:
+      - "**/*"
+icon: resources/icon.png
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
 protocols:
   - name: Yomunami
     schemes:

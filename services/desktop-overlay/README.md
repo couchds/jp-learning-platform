@@ -4,7 +4,9 @@ Local desktop companion for capturing Japanese text from any visible window: gam
 
 ## Setup
 
-For everyday macOS use, build and launch the named app bundle so Screen Recording and Accessibility permissions attach to Yomunami instead of a generic Python process:
+For everyday use, launch the Yomunami desktop app. It owns the global capture command, starts this worker in the background, and passes the private API URL and authentication token automatically.
+
+For standalone macOS development, build and launch the named app bundle so Screen Recording and Accessibility permissions attach to Yomunami instead of a generic Python process:
 
 ```bash
 npm run build:overlay:macos
@@ -31,11 +33,7 @@ pip install -r requirements.txt
 python overlay.py
 ```
 
-The overlay talks to the local API at `http://127.0.0.1:3001` by default. The API can also launch it from the web app control panel through `POST /api/desktop/overlay/launch`.
-
-The browser launcher prefers `dist/Yomunami OCR Overlay.app` on macOS when it has been built. Otherwise it falls back to the platform virtual environment Python path (`.venv/Scripts/python.exe` on Windows, `.venv/bin/python` on macOS/Linux), then a system Python command.
-
-When launched from the browser, the API passes `YOMUNAMI_WEB_URL` so the overlay's Open Web App button returns to the active Vite port. Manual launches default to `http://127.0.0.1:5173`.
+Standalone development defaults to the local API at `http://127.0.0.1:3001`. The desktop supervisor overrides that URL, disables the overlay's duplicate hotkey listener, starts it hidden, and sends capture requests through a local command file.
 
 ## Flow
 

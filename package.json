@@ -1,6 +1,6 @@
 {
   "name": "jp-learning-platform",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "private": true,
   "description": "Local-first Japanese learning platform for resources, vocabulary, kanji, OCR, and pronunciation practice.",
   "license": "MIT",
@@ -12,6 +12,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "build:overlay:macos": "bash scripts/build-desktop-overlay-macos.sh",
+    "build:desktop-sidecars": "python scripts/build_desktop_sidecars.py",
     "check": "npm run check --workspaces --if-present",
     "dev": "concurrently -n api,web -c green,cyan \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npm run dev --workspace @jp-learning-platform/api",
@@ -19,6 +20,7 @@
     "dev:web": "npm run dev --workspace @jp-learning-platform/web",
     "format": "npm run format --workspaces --if-present",
     "test": "npm run test --workspaces --if-present && npm run test:python",
+    "test:desktop:e2e": "npm run test:e2e --workspace @jp-learning-platform/desktop",
     "test:python": "python -m unittest discover -s tests -p \"test_*.py\"",
     "package:desktop": "npm run package --workspace @jp-learning-platform/desktop",
     "make:desktop": "npm run make --workspace @jp-learning-platform/desktop"
