@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { constants } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { Router } from "express";
 import { config } from "../config.js";
@@ -18,6 +18,8 @@ type DoctorCheck = {
 };
 
 export const runtimeRouter = Router();
+const OVERLAY_IMPORT_CACHE_MS = 30_000;
+let overlayImportCache: { expiresAt: number; value: DoctorCheck } | undefined;
 
 runtimeRouter.get(
   "/doctor",
@@ -26,12 +28,16 @@ runtimeRouter.get(
       ...(process.platform === "darwin" ? [overlayAppBundleCheck()] : []),
       overlayScriptCheck(),
       overlayPythonCheck(),
-      overlayImportCheck(),
       writablePathCheck("data", config.databasePath),
       writablePathCheck("uploads", config.uploadDir),
       macPermissionHint()
     ];
 
+    checks.splice(
+      process.platform === "darwin" ? 3 : 2,
+      0,
+      await overlayImportCheck()
+    );
     checks.push(
       ...(await Promise.all([
         serviceCheck("ocr", config.ocrServiceUrl),
@@ -89,7 +95,17 @@ function overlayPythonCheck(): DoctorCheck {
   };
 }
 
-function overlayImportCheck(): DoctorCheck {
+async function overlayImportCheck(): Promise<DoctorCheck> {
+  if (overlayImportCache && overlayImportCache.expiresAt > Date.now()) {
+    return overlayImportCache.value;
+  }
+
+  const value = await runOverlayImportCheck();
+  overlayImportCache = { value, expiresAt: Date.now() + OVERLAY_IMPORT_CACHE_MS };
+  return value;
+}
+
+async function runOverlayImportCheck(): Promise<DoctorCheck> {
   if (fs.existsSync(config.overlayAppExecutablePath)) {
     return {
       id: "overlay-imports",
@@ -110,13 +126,13 @@ function overlayImportCheck(): DoctorCheck {
     };
   }
 
-  const result = spawnSync(
+  const result = await runProcess(
     python.command,
     [...python.argsPrefix, "-c", "import requests, tkinter, PIL, pynput, mss; print('ok')"],
-    { encoding: "utf8", timeout: 7000, windowsHide: true }
+    7000
   );
 
-  if (result.status === 0) {
+  if (result.code === 0) {
     return {
       id: "overlay-imports",
       label: "Overlay Python packages",
@@ -129,9 +145,30 @@ function overlayImportCheck(): DoctorCheck {
     id: "overlay-imports",
     label: "Overlay Python packages",
     status: "error",
-    detail: summarizeProcessFailure(result.stderr || result.stdout || result.error?.message || "Import check failed"),
+    detail: summarizeProcessFailure(result.stderr || result.stdout || result.error || "Import check failed"),
     action: venvSetupHint("services/desktop-overlay")
   };
+}
+
+export function runProcess(command: string, args: string[], timeoutMs: number) {
+  return new Promise<{ code: number | null; stdout: string; stderr: string; error?: string }>((resolve) => {
+    const child = spawn(command, args, { windowsHide: true });
+    let stdout = "";
+    let stderr = "";
+    let error: string | undefined;
+    const append = (current: string, chunk: Buffer) => (current + chunk.toString("utf8")).slice(-8192);
+    child.stdout.on("data", (chunk: Buffer) => { stdout = append(stdout, chunk); });
+    child.stderr.on("data", (chunk: Buffer) => { stderr = append(stderr, chunk); });
+    child.once("error", (failure) => { error = failure.message; });
+    const timer = setTimeout(() => {
+      error = `Import check timed out after ${timeoutMs}ms`;
+      child.kill();
+    }, timeoutMs);
+    child.once("close", (code) => {
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr, error });
+    });
+  });
 }
 
 function writablePathCheck(id: string, targetPath: string): DoctorCheck {
