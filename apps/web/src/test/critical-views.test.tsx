@@ -8,9 +8,7 @@ import { TrackerView } from "../views/TrackerView";
 
 vi.mock("../api", () => ({
   api: {
-    resources: vi.fn(),
-    desktopOverlayStatus: vi.fn(),
-    ocrHealth: vi.fn()
+    resources: vi.fn()
   }
 }));
 
@@ -19,8 +17,6 @@ const emptyResources = { items: [], page: { limit: 25, offset: 0, total: 0 } };
 describe("critical routed view states", () => {
   beforeEach(() => {
     vi.mocked(api.resources).mockResolvedValue(emptyResources);
-    vi.mocked(api.desktopOverlayStatus).mockResolvedValue({ available: false } as never);
-    vi.mocked(api.ocrHealth).mockResolvedValue({ service: "ocr", url: "", available: false });
   });
 
   it("shows resource loading failures without losing the create form", async () => {

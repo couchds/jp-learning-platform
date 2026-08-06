@@ -2,13 +2,11 @@ import type {
   Backup,
   DataSummary,
   Dashboard,
-  DesktopOverlayStatus,
   ImportJob,
   Kanji,
   KanjiGraph,
   KnowledgeItem,
   KnowledgeSummary,
-  LocalServiceLaunch,
   OcrResult,
   Page,
   QuizAnswerPayload,
@@ -106,11 +104,6 @@ export const api = {
     );
   },
   ocrHealth: () => requestServiceHealth("/api/ocr/health"),
-  launchOcrService: () =>
-    request<LocalServiceLaunch>("/api/ocr/service/launch", {
-      method: "POST",
-      body: JSON.stringify({})
-    }),
   runtimeDoctor: () => request<RuntimeDoctor>("/api/runtime/doctor"),
   knowledge: (query = "") => request<{ items: KnowledgeItem[] }>(`/api/knowledge${query}`),
   knowledgeSummary: (days = 30) => request<KnowledgeSummary>(`/api/knowledge/summary?days=${days}`),
@@ -192,25 +185,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ mode: "resource", answers })
     }),
-  desktopOverlayStatus: () => request<DesktopOverlayStatus>("/api/desktop/overlay/status"),
-  launchDesktopOverlay: () =>
-    request<{
-      launched: boolean;
-      alreadyRequested?: boolean;
-      pid?: number;
-      overlay: string;
-      launchTarget?: "app-bundle" | "python";
-      launchTargetDetail?: string;
-      python?: string;
-      pythonDetail?: string;
-      webUrl?: string;
-    }>(
-      "/api/desktop/overlay/launch",
-      {
-        method: "POST",
-        body: JSON.stringify({})
-      }
-    ),
   kanji: (search = "", jlptLevel?: number | null, offset = 0) => {
     const params = new URLSearchParams({ limit: "24", offset: String(offset) });
     if (search.trim()) {
