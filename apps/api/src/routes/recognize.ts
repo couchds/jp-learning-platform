@@ -1,15 +1,15 @@
 import { Router } from "express";
 import { config } from "../config.js";
-import { asyncHandler } from "../lib/http.js";
+import { asyncHandler, requestAbortSignal } from "../lib/http.js";
 import { getJson, postJson } from "../services/serviceProxy.js";
 
 export const recognizeRouter = Router();
 
 recognizeRouter.get(
   "/health",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     try {
-      const health = await getJson<unknown>(`${config.recognitionServiceUrl}/health`);
+      const health = await getJson<unknown>(`${config.recognitionServiceUrl}/health`, { signal: requestAbortSignal(req) });
       res.json({ service: "recognition", url: config.recognitionServiceUrl, health });
     } catch (error) {
       res.status(503).json({
@@ -25,7 +25,7 @@ recognizeRouter.get(
 recognizeRouter.post(
   "/",
   asyncHandler(async (req, res) => {
-    const result = await postJson<unknown>(`${config.recognitionServiceUrl}/recognize`, req.body);
+    const result = await postJson<unknown>(`${config.recognitionServiceUrl}/recognize`, req.body, { signal: requestAbortSignal(req) });
     res.json(result);
   })
 );

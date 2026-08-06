@@ -70,3 +70,10 @@ export function parseLimitOffset(query: Request["query"]) {
   const offset = Math.max(Number.parseInt(String(query.offset ?? "0"), 10) || 0, 0);
   return { limit, offset };
 }
+
+export function requestAbortSignal(req: Request) {
+  const controller = new AbortController();
+  if (req.aborted) controller.abort(new Error("Client disconnected"));
+  else req.once("aborted", () => controller.abort(new Error("Client disconnected")));
+  return controller.signal;
+}

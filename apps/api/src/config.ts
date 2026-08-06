@@ -32,6 +32,11 @@ function listFromEnv(value: string | undefined, fallback: string[]): string[] {
     .filter(Boolean);
 }
 
+function numberFromEnv(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function serviceScriptPathFromEnv(value: string | undefined, fallback: string, serviceRoot: string, envName: string): string {
   const resolved = path.resolve(value ?? fallback);
   const relative = path.relative(serviceRoot, resolved);
@@ -44,12 +49,14 @@ function serviceScriptPathFromEnv(value: string | undefined, fallback: string, s
 }
 
 export const config = {
+  productVersion: "0.6.1",
   env: process.env.NODE_ENV ?? "development",
   repoRoot,
   host: process.env.API_HOST ?? "127.0.0.1",
   port: Number.parseInt(process.env.API_PORT ?? "3001", 10),
   databasePath: process.env.DATABASE_PATH ?? path.join(repoRoot, "data/local/app.sqlite"),
   uploadDir: process.env.UPLOAD_DIR ?? path.join(repoRoot, "uploads"),
+  backupDir: process.env.BACKUP_DIR ?? path.join(repoRoot, "data/local/backups"),
   allowedOrigins: listFromEnv(process.env.API_ALLOWED_ORIGINS, [
     "http://127.0.0.1:5173",
     "http://localhost:5173",
@@ -62,6 +69,11 @@ export const config = {
   ocrServiceUrl: process.env.OCR_SERVICE_URL ?? "http://127.0.0.1:5100",
   recognitionServiceUrl: process.env.RECOGNITION_SERVICE_URL ?? "http://127.0.0.1:5000",
   speechServiceUrl: process.env.SPEECH_SERVICE_URL ?? "http://127.0.0.1:5200",
+  serviceRequestTimeoutMs: numberFromEnv(process.env.SERVICE_REQUEST_TIMEOUT_MS, 15_000),
+  serviceUploadTimeoutMs: numberFromEnv(process.env.SERVICE_UPLOAD_TIMEOUT_MS, 120_000),
+  serviceResponseLimitBytes: numberFromEnv(process.env.SERVICE_RESPONSE_LIMIT_BYTES, 2 * 1024 * 1024),
+  proxyFileLimitBytes: numberFromEnv(process.env.PROXY_FILE_LIMIT_BYTES, 30 * 1024 * 1024),
+  importDownloadTimeoutMs: numberFromEnv(process.env.IMPORT_DOWNLOAD_TIMEOUT_MS, 120_000),
   ocrServiceRoot: ocrRoot,
   ocrScriptPath: serviceScriptPathFromEnv(process.env.OCR_SCRIPT_PATH, defaultOcrScriptPath, ocrRoot, "OCR_SCRIPT_PATH"),
   ocrPythonPath: process.env.OCR_PYTHON_PATH ?? defaultOcrPythonPath,
