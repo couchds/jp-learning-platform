@@ -1,4 +1,5 @@
 import type {
+  Backup,
   DataSummary,
   Dashboard,
   DesktopOverlayStatus,
@@ -111,6 +112,16 @@ export const api = {
   runtimeDoctor: () => request<RuntimeDoctor>("/api/runtime/doctor"),
   knowledge: (query = "") => request<{ items: KnowledgeItem[] }>(`/api/knowledge${query}`),
   knowledgeSummary: (days = 30) => request<KnowledgeSummary>(`/api/knowledge/summary?days=${days}`),
+  dueReviews: (query = "") => request<Page<KnowledgeItem>>(`/api/knowledge/reviews/due${query}`),
+  submitReview: (item: { itemType: KnowledgeItem["itemType"]; itemKey: string; correct: boolean }) =>
+    request<{ item: KnowledgeItem }>("/api/knowledge/reviews", { method: "POST", body: JSON.stringify(item) }),
+  reviewAction: (item: { itemType: KnowledgeItem["itemType"]; itemKey: string; action: "suspend" | "resume" | "reset" | "master" }) =>
+    request<{ item: KnowledgeItem }>("/api/knowledge/reviews/actions", { method: "POST", body: JSON.stringify(item) }),
+  backups: () => request<{ items: Backup[] }>("/api/data/backups"),
+  createBackup: () => request<{ backup: Backup }>("/api/data/backups", { method: "POST", body: JSON.stringify({}) }),
+  restoreBackup: (name: string) => request<{ restored: string; safetyBackup: string }>(`/api/data/backups/${encodeURIComponent(name)}/restore`, { method: "POST", body: JSON.stringify({}) }),
+  orphanUploads: () => request<{ items: string[] }>("/api/data/uploads/orphans"),
+  removeOrphanUploads: () => request<{ removed: string[]; count: number }>("/api/data/uploads/orphans", { method: "DELETE" }),
   markKnowledgeSeen: (item: {
     itemType: KnowledgeItem["itemType"];
     itemKey: string;
@@ -198,8 +209,8 @@ export const api = {
         body: JSON.stringify({})
       }
     ),
-  kanji: (search = "", jlptLevel?: number | null) => {
-    const params = new URLSearchParams({ limit: "24" });
+  kanji: (search = "", jlptLevel?: number | null, offset = 0) => {
+    const params = new URLSearchParams({ limit: "24", offset: String(offset) });
     if (search.trim()) {
       params.set("search", search.trim());
     }
@@ -208,9 +219,9 @@ export const api = {
     }
     return request<Page<Kanji>>(`/api/kanji?${params.toString()}`);
   },
-  words: (search: string) => request<Page<Word>>(`/api/words?limit=24&search=${encodeURIComponent(search)}`),
-  sentences: (search: string) =>
-    request<Page<SentenceExample>>(`/api/sentences?limit=24&search=${encodeURIComponent(search)}`),
+  words: (search: string, offset = 0) => request<Page<Word>>(`/api/words?limit=24&offset=${offset}&search=${encodeURIComponent(search)}`),
+  sentences: (search: string, offset = 0) =>
+    request<Page<SentenceExample>>(`/api/sentences?limit=24&offset=${offset}&search=${encodeURIComponent(search)}`),
   kanjiGraph: (literal: string, limit = 24) =>
     request<KanjiGraph>(`/api/graph/kanji?literal=${encodeURIComponent(literal)}&limit=${limit}`),
   importJobs: (limit = 10) => request<{ items: ImportJob[] }>(`/api/imports/jobs?limit=${limit}`),
@@ -226,6 +237,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(job)
     }),
+  cancelImportJob: (id: number) => request<{ job: ImportJob }>(`/api/imports/jobs/${id}/cancel`, { method: "POST", body: JSON.stringify({}) }),
   ocrImage: (file: File) => {
     const form = new FormData();
     form.append("image", file);

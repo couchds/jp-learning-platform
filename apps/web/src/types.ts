@@ -168,7 +168,7 @@ export type KanjiGraph = {
 export type ImportJob = {
   id: number;
   jobType: "starter_data" | "kanjidic2" | "jmdict" | "sentence_examples" | "kanji_graph";
-  status: "queued" | "running" | "completed" | "failed";
+  status: "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
   inputPath: string | null;
   args: unknown;
   stdout: string;
@@ -191,11 +191,12 @@ export type ServiceHealth = {
 
 export type KnowledgeItem = {
   id: number;
-  itemType: "kanji" | "word" | "custom_vocabulary";
+  itemType: "kanji" | "word" | "phrase" | "kana" | "custom_vocabulary";
   itemKey: string;
   stage: number;
   lastSeenAt: string | null;
   nextReviewAt: string | null;
+  suspendedAt: string | null;
   lapses: number;
   xp: number;
   seenCount: number;
@@ -204,6 +205,16 @@ export type KnowledgeItem = {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type Backup = {
+  name: string;
+  version: number;
+  productVersion: string;
+  createdAt: string;
+  schemaVersion: number;
+  database: { path: string; size: number; sha256: string };
+  uploads: Array<{ path: string; size: number; sha256: string }>;
 };
 
 export type KnowledgeSummary = {
