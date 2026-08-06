@@ -12,8 +12,10 @@ import {
   type WordSummaryRow
 } from "../db/mappers.js";
 import { asyncHandler, HttpError, parseLimitOffset } from "../lib/http.js";
-import { recordKnowledgeEvent } from "../services/knowledge.js";
 import { type SuggestedTerm, upsertResourceTerms } from "../services/ocrTerms.js";
+import { stageUploadedFiles } from "../services/uploadLifecycle.js";
+import { buildBalancedQuizDeck } from "../services/quiz.js";
+import { recordReviewResult } from "../services/reviews.js";
 
 const resourceSchema = z.object({
   name: z.string().trim().min(1).max(500),
@@ -92,7 +94,7 @@ resourcesRouter.get(
 
     const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
     const rows = getDb()
-      .prepare(`SELECT * FROM resources ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`)
+      .prepare(`SELECT * FROM resources ${where} ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?`)
       .all(...params, limit, offset) as ResourceRow[];
     const total = getDb()
       .prepare(`SELECT COUNT(*) AS count FROM resources ${where}`)
@@ -233,10 +235,42 @@ resourcesRouter.put(
 
 resourcesRouter.delete(
   "/:id",
-  asyncHandler((req, res) => {
+  asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     getResourceOrThrow(id);
-    getDb().prepare("DELETE FROM resources WHERE id = ?").run(id);
+    const db = getDb();
+    const uploads = (db
+      .prepare("SELECT file_path FROM resource_images WHERE resource_id = ?")
+      .all(id) as Array<{ file_path: string }>).map((row) => row.file_path);
+    const staged = await stageUploadedFiles(uploads);
+    try {
+      db.prepare("DELETE FROM resources WHERE id = ?").run(id);
+      await staged.commit();
+    } catch (error) {
+      await staged.rollback();
+      throw error;
+    }
+    res.status(204).send();
+  })
+);
+
+resourcesRouter.delete(
+  "/:id/images/:imageId",
+  asyncHandler(async (req, res) => {
+    const resourceId = Number(req.params.id);
+    const imageId = Number(req.params.imageId);
+    getResourceOrThrow(resourceId);
+    const db = getDb();
+    const image = db.prepare("SELECT file_path FROM resource_images WHERE id = ? AND resource_id = ?").get(imageId, resourceId) as { file_path: string } | undefined;
+    if (!image) throw new HttpError(404, "Resource image not found");
+    const staged = await stageUploadedFiles([image.file_path]);
+    try {
+      db.prepare("DELETE FROM resource_images WHERE id = ? AND resource_id = ?").run(imageId, resourceId);
+      await staged.commit();
+    } catch (error) {
+      await staged.rollback();
+      throw error;
+    }
     res.status(204).send();
   })
 );
@@ -437,8 +471,7 @@ resourcesRouter.get(
       )
       .all(resourceId, limit) as Array<WordSummaryRow & { frequency: number }>;
 
-    const questions = [
-      ...terms.map((term) => ({
+    const termQuestions = terms.map((term) => ({
         id: `term:${term.id}`,
         sourceType: term.term_type,
         sourceKey: term.text,
@@ -446,8 +479,8 @@ resourcesRouter.get(
         expectedAnswer: term.meaning || term.reading || term.text,
         promptType: term.term_type,
         frequency: term.frequency
-      })),
-      ...dictionaryWords.map((row) => {
+      }));
+    const dictionaryQuestions = dictionaryWords.map((row) => {
         const word = mapWordSummary(row);
         const prompt = word.kanjiForms[0] ?? word.readings[0] ?? `#${word.entryId}`;
         return {
@@ -459,8 +492,8 @@ resourcesRouter.get(
           promptType: "word",
           frequency: row.frequency
         };
-      }),
-      ...customVocabulary.map((term) => ({
+      });
+    const customQuestions = customVocabulary.map((term) => ({
         id: `custom:${term.id}`,
         sourceType: "custom_vocabulary",
         sourceKey: term.word,
@@ -468,12 +501,11 @@ resourcesRouter.get(
         expectedAnswer: term.meaning || term.reading || term.word,
         promptType: "word",
         frequency: term.frequency
-      }))
-    ]
-      .filter((question) => question.expectedAnswer)
-      .slice(0, limit);
+      }));
+    const seed = String(req.query.seed ?? `${resourceId}:${new Date().toISOString().slice(0, 10)}`);
+    const deck = buildBalancedQuizDeck([termQuestions, dictionaryQuestions, customQuestions], limit, seed);
 
-    res.json({ questions });
+    res.json(deck);
   })
 );
 
@@ -571,16 +603,18 @@ function recordQuizKnowledge(
     sourceKey?: string | null;
   }
 ) {
-  if (!answer.correct || answer.sourceType !== "kanji" || !answer.sourceKey) {
+  if (!answer.sourceKey || !answer.sourceType) {
     return;
   }
-
-  recordKnowledgeEvent(db, {
-    itemType: "kanji",
+  const supportedTypes = new Set(["kanji", "word", "phrase", "kana", "custom_vocabulary"]);
+  if (!supportedTypes.has(answer.sourceType)) {
+    return;
+  }
+  recordReviewResult(db, {
+    itemType: answer.sourceType as "kanji" | "word" | "phrase" | "kana" | "custom_vocabulary",
     itemKey: answer.sourceKey,
-    xpDelta: 5,
-    source: "quiz",
-    eventType: "quiz"
+    correct: answer.correct,
+    source: "quiz"
   });
 }
 
