@@ -17,7 +17,7 @@ dashboardRouter.get(
       dueReviews: (
         db
           .prepare(
-            "SELECT COUNT(*) AS count FROM user_knowledge WHERE next_review_at IS NOT NULL AND next_review_at <= CURRENT_TIMESTAMP"
+            "SELECT COUNT(*) AS count FROM user_knowledge WHERE suspended_at IS NULL AND next_review_at IS NOT NULL AND datetime(next_review_at) <= datetime('now')"
           )
           .get() as { count: number }
       ).count

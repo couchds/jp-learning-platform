@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { touchNow } from "../db/index.js";
 
-export type KnowledgeItemType = "kanji" | "word" | "custom_vocabulary";
+export type KnowledgeItemType = "kanji" | "word" | "phrase" | "kana" | "custom_vocabulary";
 
 export type KnowledgeEventOptions = {
   itemType: KnowledgeItemType;

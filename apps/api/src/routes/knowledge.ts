@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
 import { getDb, readJson, touchNow } from "../db/index.js";
-import { asyncHandler } from "../lib/http.js";
+import { asyncHandler, HttpError, parseLimitOffset } from "../lib/http.js";
 import { recordKnowledgeEvent, setKnowledgeKnown } from "../services/knowledge.js";
+import { recordReviewResult } from "../services/reviews.js";
+
+const itemTypeSchema = z.enum(["kanji", "word", "phrase", "kana", "custom_vocabulary"]);
 
 const knowledgeSchema = z.object({
-  itemType: z.enum(["kanji", "word", "custom_vocabulary"]),
+  itemType: itemTypeSchema,
   itemKey: z.string().trim().min(1).max(255),
   stage: z.number().int().min(0).max(12).default(0),
   lastSeenAt: z.string().datetime().nullable().optional(),
@@ -19,20 +22,106 @@ const knowledgeSchema = z.object({
 });
 
 const seenSchema = z.object({
-  itemType: z.enum(["kanji", "word", "custom_vocabulary"]),
+  itemType: itemTypeSchema,
   itemKey: z.string().trim().min(1).max(255),
   xpDelta: z.number().int().min(0).max(100).default(1),
   source: z.string().trim().min(1).max(80).default("manual")
 });
 
 const knownSchema = z.object({
-  itemType: z.enum(["kanji", "word", "custom_vocabulary"]),
+  itemType: itemTypeSchema,
   itemKey: z.string().trim().min(1).max(255),
   isKnown: z.boolean().default(true),
   source: z.string().trim().min(1).max(80).default("manual")
 });
 
 export const knowledgeRouter = Router();
+
+const reviewSchema = z.object({
+  itemType: itemTypeSchema,
+  itemKey: z.string().trim().min(1).max(255),
+  correct: z.boolean(),
+  source: z.string().trim().min(1).max(80).default("review")
+});
+const reviewActionSchema = z.object({
+  itemType: itemTypeSchema,
+  itemKey: z.string().trim().min(1).max(255),
+  action: z.enum(["suspend", "resume", "reset", "master"])
+});
+
+knowledgeRouter.get(
+  "/reviews/due",
+  asyncHandler((req, res) => {
+    const { limit, offset } = parseLimitOffset(req.query);
+    const clauses = ["uk.suspended_at IS NULL", "uk.next_review_at IS NOT NULL", "datetime(uk.next_review_at) <= datetime(?)"];
+    const params: unknown[] = [new Date().toISOString()];
+    if (req.query.itemType) {
+      clauses.push("uk.item_type = ?");
+      params.push(itemTypeSchema.parse(req.query.itemType));
+    }
+    if (req.query.resourceId) {
+      const resourceId = Number(req.query.resourceId);
+      clauses.push(`(
+        (uk.item_type = 'kanji' AND (
+          EXISTS (SELECT 1 FROM resource_kanji rk JOIN kanji k ON k.id=rk.kanji_id WHERE rk.resource_id=? AND k.literal=uk.item_key)
+          OR EXISTS (SELECT 1 FROM resource_terms rt WHERE rt.resource_id=? AND rt.term_type='kanji' AND rt.text=uk.item_key)
+        ))
+        OR (uk.item_type IN ('word', 'phrase', 'kana') AND (
+          EXISTS (SELECT 1 FROM resource_terms rt WHERE rt.resource_id=? AND rt.text=uk.item_key)
+          OR EXISTS (SELECT 1 FROM resource_words rw
+            WHERE rw.resource_id=? AND (EXISTS (SELECT 1 FROM entry_kanji ek WHERE ek.entry_id=rw.entry_id AND ek.kanji=uk.item_key)
+              OR EXISTS (SELECT 1 FROM entry_readings er WHERE er.entry_id=rw.entry_id AND er.reading=uk.item_key)))
+        ))
+        OR (uk.item_type = 'custom_vocabulary' AND EXISTS (
+          SELECT 1 FROM custom_vocabulary cv WHERE cv.resource_id=? AND cv.word=uk.item_key
+        ))
+      )`);
+      params.push(resourceId, resourceId, resourceId, resourceId, resourceId);
+    }
+    const where = `WHERE ${clauses.join(" AND ")}`;
+    const db = getDb();
+    const rows = db
+      .prepare(`SELECT uk.* FROM user_knowledge uk ${where} ORDER BY uk.next_review_at, uk.lapses DESC LIMIT ? OFFSET ?`)
+      .all(...params, limit, offset);
+    const total = db.prepare(`SELECT COUNT(*) AS count FROM user_knowledge uk ${where}`).get(...params) as { count: number };
+    res.json({ items: rows.map(mapKnowledgeRow), page: { limit, offset, total: total.count } });
+  })
+);
+
+knowledgeRouter.post(
+  "/reviews",
+  asyncHandler((req, res) => {
+    const body = reviewSchema.parse(req.body);
+    const item = recordReviewResult(getDb(), body);
+    res.status(201).json({ item: mapKnowledgeRow(item) });
+  })
+);
+
+knowledgeRouter.post(
+  "/reviews/actions",
+  asyncHandler((req, res) => {
+    const body = reviewActionSchema.parse(req.body);
+    const db = getDb();
+    const existing = db.prepare("SELECT id FROM user_knowledge WHERE item_type = ? AND item_key = ?").get(body.itemType, body.itemKey);
+    if (!existing) throw new HttpError(404, "Knowledge item not found");
+    const now = touchNow();
+    if (body.action === "suspend") {
+      db.prepare("UPDATE user_knowledge SET suspended_at = ?, updated_at = ? WHERE item_type = ? AND item_key = ?").run(now, now, body.itemType, body.itemKey);
+    } else if (body.action === "resume") {
+      db.prepare("UPDATE user_knowledge SET suspended_at = NULL, updated_at = ? WHERE item_type = ? AND item_key = ?").run(now, body.itemType, body.itemKey);
+    } else if (body.action === "reset") {
+      db.prepare(
+        `UPDATE user_knowledge SET stage = 0, lapses = 0, next_review_at = ?, suspended_at = NULL,
+         is_known = 0, known_at = NULL, updated_at = ? WHERE item_type = ? AND item_key = ?`
+      ).run(now, now, body.itemType, body.itemKey);
+    } else {
+      setKnowledgeKnown(db, body.itemType, body.itemKey, true, "review");
+      db.prepare("UPDATE user_knowledge SET next_review_at = NULL, suspended_at = NULL, updated_at = ? WHERE item_type = ? AND item_key = ?").run(now, body.itemType, body.itemKey);
+    }
+    const item = db.prepare("SELECT * FROM user_knowledge WHERE item_type = ? AND item_key = ?").get(body.itemType, body.itemKey);
+    res.json({ item: mapKnowledgeRow(item) });
+  })
+);
 
 knowledgeRouter.get(
   "/summary",
@@ -152,7 +241,7 @@ knowledgeRouter.get(
     }
 
     if (req.query.due === "true") {
-      clauses.push("next_review_at IS NOT NULL AND next_review_at <= CURRENT_TIMESTAMP");
+      clauses.push("suspended_at IS NULL AND next_review_at IS NOT NULL AND datetime(next_review_at) <= datetime('now')");
     }
 
     const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
@@ -372,6 +461,7 @@ function mapKnowledgeRow(row: unknown) {
     stage: number;
     last_seen_at: string | null;
     next_review_at: string | null;
+    suspended_at: string | null;
     lapses: number;
     xp: number;
     seen_count: number;
@@ -389,6 +479,7 @@ function mapKnowledgeRow(row: unknown) {
     stage: item.stage,
     lastSeenAt: item.last_seen_at,
     nextReviewAt: item.next_review_at,
+    suspendedAt: item.suspended_at,
     lapses: item.lapses,
     xp: item.xp,
     seenCount: item.seen_count,
