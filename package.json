@@ -17,10 +17,12 @@
     "dev:api": "npm run dev --workspace @jp-learning-platform/api",
     "dev:web": "npm run dev --workspace @jp-learning-platform/web",
     "format": "npm run format --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present && npm run test:python",
+    "test:python": "python -m unittest discover -s tests -p \"test_*.py\""
   },
   "devDependencies": {
-    "concurrently": "^10.0.3"
+    "concurrently": "^10.0.4",
+    "jsdom": "^29.1.1"
   },
   "engines": {
     "node": ">=20.19.0"
