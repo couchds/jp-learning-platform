@@ -1,12 +1,16 @@
 import path from "node:path";
-import fs from "node:fs";
-import { spawn } from "node:child_process";
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import fs, { createWriteStream } from "node:fs";
+import { spawn, type ChildProcess } from "node:child_process";
+import { mkdir, rename, rm } from "node:fs/promises";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type Database from "better-sqlite3";
 import { config } from "../config.js";
 import { getDb, readJson, touchNow, writeJson } from "../db/index.js";
+import { HttpError } from "../lib/http.js";
 
 export type ImportJobType = "starter_data" | "kanjidic2" | "jmdict" | "sentence_examples" | "kanji_graph";
+export type ImportJobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
 
 export type ImportJobOptions = {
   jobType: ImportJobType;
@@ -20,7 +24,7 @@ export type ImportJobOptions = {
 export type ImportJobRow = {
   id: number;
   job_type: ImportJobType;
-  status: "queued" | "running" | "completed" | "failed";
+  status: ImportJobStatus;
   input_path: string | null;
   args_json: string;
   stdout: string;
@@ -33,12 +37,11 @@ export type ImportJobRow = {
   updated_at: string;
 };
 
-const outputLimit = 30000;
+const outputLimit = 30_000;
 const importDataRoot = path.join(config.repoRoot, "data/local/imports");
+const activeJobs = new Map<number, { controller: AbortController; child?: ChildProcess }>();
 
-type ResolvedImportJobOptions = ImportJobOptions & {
-  inputPath?: string | null;
-};
+type ResolvedImportJobOptions = ImportJobOptions & { inputPath?: string | null };
 
 const defaultDatasetSources: Partial<Record<ImportJobType, { inputPath: string; url?: string; label: string }>> = {
   kanjidic2: {
@@ -48,7 +51,7 @@ const defaultDatasetSources: Partial<Record<ImportJobType, { inputPath: string; 
   },
   jmdict: {
     inputPath: path.join(importDataRoot, "JMdict_e.gz"),
-    url: "http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz",
+    url: "https://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz",
     label: "JMdict"
   },
   sentence_examples: {
@@ -75,21 +78,42 @@ export function mapImportJob(row: ImportJobRow) {
   };
 }
 
+export function reconcileImportJobs() {
+  const now = touchNow();
+  return getDb()
+    .prepare(
+      `UPDATE import_jobs
+       SET status = 'interrupted', error = 'API stopped before this import completed', completed_at = ?, updated_at = ?
+       WHERE status IN ('queued', 'running')`
+    )
+    .run(now, now).changes;
+}
+
 export function createImportJob(options: ImportJobOptions) {
   const db = getDb();
   const resolvedOptions = resolveImportJobOptions(options);
   const jobArgs = buildJobArgs(resolvedOptions);
-  const now = touchNow();
-  const result = db
-    .prepare(
-      `INSERT INTO import_jobs
-       (job_type, status, input_path, args_json, updated_at)
-       VALUES (?, 'queued', ?, ?, ?)`
-    )
-    .run(resolvedOptions.jobType, resolvedOptions.inputPath ?? null, writeJson(jobArgs), now);
-  const job = db.prepare("SELECT * FROM import_jobs WHERE id = ?").get(result.lastInsertRowid) as ImportJobRow;
+  const job = db.transaction(() => {
+    const active = db
+      .prepare("SELECT id FROM import_jobs WHERE status IN ('queued', 'running') LIMIT 1")
+      .get() as { id: number } | undefined;
+    if (active) {
+      throw new HttpError(409, `Import job ${active.id} is already active`);
+    }
 
-  startImportJob(job, resolvedOptions);
+    const now = touchNow();
+    const result = db
+      .prepare(
+        `INSERT INTO import_jobs (job_type, status, input_path, args_json, updated_at)
+         VALUES (?, 'queued', ?, ?, ?)`
+      )
+      .run(resolvedOptions.jobType, resolvedOptions.inputPath ?? null, writeJson(jobArgs), now);
+    return db.prepare("SELECT * FROM import_jobs WHERE id = ?").get(result.lastInsertRowid) as ImportJobRow;
+  })();
+
+  const controller = new AbortController();
+  activeJobs.set(job.id, { controller });
+  void runImportJob(job, resolvedOptions, controller);
   return mapImportJob(job);
 }
 
@@ -104,23 +128,36 @@ export function getImportJob(id: number) {
   return row ? mapImportJob(row) : null;
 }
 
-function startImportJob(job: ImportJobRow, options: ResolvedImportJobOptions) {
-  void runImportJob(job, options);
+export function cancelImportJob(id: number) {
+  const db = getDb();
+  const row = db.prepare("SELECT * FROM import_jobs WHERE id = ?").get(id) as ImportJobRow | undefined;
+  if (!row) {
+    throw new HttpError(404, "Import job not found");
+  }
+  if (!['queued', 'running'].includes(row.status)) {
+    throw new HttpError(409, `Import job is already ${row.status}`);
+  }
+
+  const now = touchNow();
+  db.prepare(
+    `UPDATE import_jobs SET status = 'cancelled', error = 'Cancelled by user', completed_at = ?, updated_at = ?
+     WHERE id = ? AND status IN ('queued', 'running')`
+  ).run(now, now, id);
+  const active = activeJobs.get(id);
+  active?.controller.abort();
+  active?.child?.kill();
+  return getImportJob(id);
 }
 
-async function runImportJob(job: ImportJobRow, options: ResolvedImportJobOptions) {
+async function runImportJob(job: ImportJobRow, options: ResolvedImportJobOptions, controller: AbortController) {
   const db = getDb();
-  const python = pythonCommand();
   const startedAt = touchNow();
-  db.prepare("UPDATE import_jobs SET status = 'running', started_at = ?, updated_at = ? WHERE id = ?").run(
-    startedAt,
-    startedAt,
-    job.id
-  );
+  db.prepare(
+    "UPDATE import_jobs SET status = 'running', started_at = ?, updated_at = ? WHERE id = ? AND status = 'queued'"
+  ).run(startedAt, startedAt, job.id);
 
   let stdout = "";
   let stderr = "";
-
   const updateStdout = (chunk: string) => {
     stdout = trimOutput(stdout + chunk);
     updateOutput(db, job.id, stdout, stderr);
@@ -131,140 +168,140 @@ async function runImportJob(job: ImportJobRow, options: ResolvedImportJobOptions
   };
 
   try {
-    await ensureImportInput(options, updateStdout);
+    await ensureImportInput(job.id, options, updateStdout, controller.signal);
+    if (controller.signal.aborted) {
+      return;
+    }
+
+    const python = pythonCommand();
+    const child = spawn(python.command, [...python.prefixArgs, ...buildJobArgs(options)], {
+      cwd: config.repoRoot,
+      windowsHide: true
+    });
+    const active = activeJobs.get(job.id);
+    if (active) {
+      active.child = child;
+    }
+    child.stdout?.on("data", (chunk: Buffer) => updateStdout(chunk.toString("utf8")));
+    child.stderr?.on("data", (chunk: Buffer) => updateStderr(chunk.toString("utf8")));
+
+    const code = await new Promise<number | null>((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", resolve);
+    });
+    finishIfActive(db, job.id, code === 0 ? "completed" : "failed", {
+      exitCode: code,
+      stdout,
+      stderr,
+      error: code === 0 ? null : `Import process exited with code ${code ?? "unknown"}`
+    });
   } catch (error) {
-    const now = touchNow();
-    const message = error instanceof Error ? error.message : "Could not prepare import input";
-    db.prepare(
-      `UPDATE import_jobs
-       SET status = 'failed', error = ?, stdout = ?, stderr = ?, completed_at = ?, updated_at = ?
-       WHERE id = ?`
-    ).run(message, stdout, trimOutput(stderr + message), now, now, job.id);
-    return;
+    if (!controller.signal.aborted) {
+      const message = error instanceof Error ? error.message : "Import failed";
+      finishIfActive(db, job.id, "failed", { stdout, stderr: trimOutput(stderr + message), error: message });
+    }
+  } finally {
+    activeJobs.delete(job.id);
   }
+}
 
-  const jobArgs = buildJobArgs(options);
-  const child = spawn(python.command, [...python.prefixArgs, ...jobArgs], {
-    cwd: config.repoRoot,
-    windowsHide: true
-  });
-
-  child.stdout.on("data", (chunk: Buffer) => {
-    updateStdout(chunk.toString("utf8"));
-  });
-
-  child.stderr.on("data", (chunk: Buffer) => {
-    updateStderr(chunk.toString("utf8"));
-  });
-
-  child.on("error", (error) => {
-    const now = touchNow();
-    db.prepare(
-      `UPDATE import_jobs
-       SET status = 'failed', error = ?, stdout = ?, stderr = ?, completed_at = ?, updated_at = ?
-       WHERE id = ?`
-    ).run(error.message, stdout, stderr, now, now, job.id);
-  });
-
-  child.on("close", (code) => {
-    const now = touchNow();
-    db.prepare(
-      `UPDATE import_jobs
-       SET status = ?, exit_code = ?, stdout = ?, stderr = ?, completed_at = ?, updated_at = ?
-      WHERE id = ?`
-    ).run(code === 0 ? "completed" : "failed", code, stdout, stderr, now, now, job.id);
-  });
+function finishIfActive(
+  db: Database.Database,
+  id: number,
+  status: "completed" | "failed",
+  output: { exitCode?: number | null; stdout: string; stderr: string; error: string | null }
+) {
+  const now = touchNow();
+  db.prepare(
+    `UPDATE import_jobs
+     SET status = ?, exit_code = ?, stdout = ?, stderr = ?, error = ?, completed_at = ?, updated_at = ?
+     WHERE id = ? AND status = 'running'`
+  ).run(status, output.exitCode ?? null, output.stdout, output.stderr, output.error, now, now, id);
 }
 
 function resolveImportJobOptions(options: ImportJobOptions): ResolvedImportJobOptions {
   if (options.inputPath || options.jobType === "starter_data" || options.jobType === "kanji_graph") {
     return options;
   }
-
-  const defaultSource = defaultDatasetSources[options.jobType];
-  return defaultSource
-    ? {
-        ...options,
-        inputPath: defaultSource.inputPath
-      }
-    : options;
+  const source = defaultDatasetSources[options.jobType];
+  return source ? { ...options, inputPath: source.inputPath } : options;
 }
 
-async function ensureImportInput(options: ResolvedImportJobOptions, updateStdout: (chunk: string) => void) {
+async function ensureImportInput(
+  jobId: number,
+  options: ResolvedImportJobOptions,
+  updateStdout: (chunk: string) => void,
+  signal: AbortSignal
+) {
   if (options.jobType === "starter_data" || options.jobType === "kanji_graph") {
     return;
   }
-
   if (!options.inputPath) {
     throw new Error("No import file was configured for this job.");
   }
 
-  const defaultSource = defaultDatasetSources[options.jobType];
-  const isDefaultInput = defaultSource && path.resolve(options.inputPath) === defaultSource.inputPath;
-
-  if (isDefaultInput && defaultSource.url && !fs.existsSync(defaultSource.inputPath)) {
-    await downloadDefaultDataset(defaultSource, updateStdout);
+  const source = defaultDatasetSources[options.jobType];
+  const isDefaultInput = source && path.resolve(options.inputPath) === source.inputPath;
+  if (isDefaultInput && source.url && !fs.existsSync(source.inputPath)) {
+    await downloadDefaultDataset(jobId, source, updateStdout, signal);
   }
-
   if (!fs.existsSync(options.inputPath)) {
     const relativePath = path.relative(config.repoRoot, options.inputPath);
-    throw new Error(`Missing ${defaultSource?.label ?? "import file"}. Save it at ${relativePath} and start the import again.`);
+    throw new Error(`Missing ${source?.label ?? "import file"}. Save it at ${relativePath} and start the import again.`);
   }
 }
 
 async function downloadDefaultDataset(
+  jobId: number,
   source: { inputPath: string; url?: string; label: string },
-  updateStdout: (chunk: string) => void
+  updateStdout: (chunk: string) => void,
+  signal: AbortSignal
 ) {
-  if (!source.url) {
-    return;
-  }
-
+  if (!source.url) return;
   await mkdir(path.dirname(source.inputPath), { recursive: true });
   const relativePath = path.relative(config.repoRoot, source.inputPath);
   updateStdout(`Downloading ${source.label} to ${relativePath}\n`);
 
-  const response = await fetch(source.url);
-  if (!response.ok) {
-    throw new Error(`Could not download ${source.label}: HTTP ${response.status}`);
-  }
-
-  const tempPath = `${source.inputPath}.download`;
+  const timeoutController = new AbortController();
+  const onAbort = () => timeoutController.abort();
+  signal.addEventListener("abort", onAbort, { once: true });
+  const timeout = setTimeout(() => timeoutController.abort(), config.importDownloadTimeoutMs);
+  const tempPath = importDownloadTempPath(source.inputPath, jobId);
   try {
-    await writeFile(tempPath, Buffer.from(await response.arrayBuffer()));
+    const response = await fetch(source.url, { signal: timeoutController.signal });
+    if (!response.ok || !response.body) {
+      throw new Error(`Could not download ${source.label}: HTTP ${response.status}`);
+    }
+    await pipeline(Readable.fromWeb(response.body as never), createWriteStream(tempPath));
     await rename(tempPath, source.inputPath);
     updateStdout(`Saved ${source.label} to ${relativePath}\n`);
   } catch (error) {
     await rm(tempPath, { force: true });
+    if (timeoutController.signal.aborted && !signal.aborted) {
+      throw new Error(`Downloading ${source.label} timed out`);
+    }
     throw error;
+  } finally {
+    clearTimeout(timeout);
+    signal.removeEventListener("abort", onAbort);
   }
 }
 
+export function importDownloadTempPath(inputPath: string, jobId: number) {
+  return `${inputPath}.${jobId}.download`;
+}
+
 function buildJobArgs(options: ResolvedImportJobOptions) {
-  const script = scriptFor(options.jobType);
-  const args = [script];
-
-  if (options.inputPath) {
-    args.push(options.inputPath);
-  }
-
-  if (options.jobType === "sentence_examples" && options.source) {
-    args.push("--source", options.source);
-  }
-
+  const args = [scriptFor(options.jobType)];
+  if (options.inputPath) args.push(options.inputPath);
+  if (options.jobType === "sentence_examples" && options.source) args.push("--source", options.source);
   if ((options.jobType === "jmdict" || options.jobType === "kanji_graph") && options.limit) {
     args.push("--limit", String(options.limit));
   }
-
   if (options.jobType === "kanji_graph") {
-    if (options.maxEdges) {
-      args.push("--max-edges", String(options.maxEdges));
-    }
-    if (options.maxGroupSize) {
-      args.push("--max-group-size", String(options.maxGroupSize));
-    }
+    if (options.maxEdges) args.push("--max-edges", String(options.maxEdges));
+    if (options.maxGroupSize) args.push("--max-group-size", String(options.maxGroupSize));
   }
-
   return args;
 }
 
@@ -280,27 +317,18 @@ function scriptFor(jobType: ImportJobType) {
 }
 
 function pythonCommand() {
-  if (process.platform === "win32") {
-    return { command: "py", prefixArgs: ["-3"] };
-  }
-
-  return { command: "python3", prefixArgs: [] };
+  return process.platform === "win32"
+    ? { command: "py", prefixArgs: ["-3"] }
+    : { command: "python3", prefixArgs: [] };
 }
 
 function updateOutput(db: Database.Database, id: number, stdout: string, stderr: string) {
   const now = touchNow();
-  db.prepare("UPDATE import_jobs SET stdout = ?, stderr = ?, updated_at = ? WHERE id = ?").run(
-    stdout,
-    stderr,
-    now,
-    id
-  );
+  db.prepare(
+    "UPDATE import_jobs SET stdout = ?, stderr = ?, updated_at = ? WHERE id = ? AND status = 'running'"
+  ).run(stdout, stderr, now, id);
 }
 
 function trimOutput(value: string) {
-  if (value.length <= outputLimit) {
-    return value;
-  }
-
-  return value.slice(value.length - outputLimit);
+  return value.length <= outputLimit ? value : value.slice(value.length - outputLimit);
 }

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler, HttpError } from "../lib/http.js";
-import { createImportJob, getImportJob, listImportJobs } from "../services/importJobs.js";
+import { cancelImportJob, createImportJob, getImportJob, listImportJobs } from "../services/importJobs.js";
 
 const importJobSchema = z.object({
   jobType: z.enum(["starter_data", "kanjidic2", "jmdict", "sentence_examples", "kanji_graph"]),
@@ -31,6 +31,13 @@ importsRouter.get(
     }
 
     res.json({ job });
+  })
+);
+
+importsRouter.post(
+  "/jobs/:id/cancel",
+  asyncHandler((req, res) => {
+    res.json({ job: cancelImportJob(Number(req.params.id)) });
   })
 );
 
