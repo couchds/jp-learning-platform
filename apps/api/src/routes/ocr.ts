@@ -4,11 +4,12 @@ import { spawn } from "node:child_process";
 import { Router } from "express";
 import { config } from "../config.js";
 import { getDb, readJson, touchNow, writeJson } from "../db/index.js";
-import { asyncHandler, HttpError } from "../lib/http.js";
+import { asyncHandler, HttpError, requestAbortSignal } from "../lib/http.js";
 import { imageUpload, relativeUploadPath } from "../services/localUpload.js";
 import { termsFromOcrElements, upsertResourceTerms } from "../services/ocrTerms.js";
 import { postFile } from "../services/serviceProxy.js";
 import { resolvePythonRuntime } from "../services/pythonRuntime.js";
+import { removeUploadedFile } from "../services/uploadLifecycle.js";
 
 type OcrResponse = {
   success?: boolean;
@@ -185,7 +186,7 @@ ocrRouter.post(
     }
 
     try {
-      const result = await runOcr(req.file.path, req.file.originalname, req.file.mimetype);
+      const result = await runOcr(req.file.path, req.file.originalname, req.file.mimetype, requestAbortSignal(req));
       res.json({
         ...result,
         terms: termsFromOcrElements(result.elements)
@@ -200,68 +201,70 @@ ocrRouter.post(
   "/resources/:resourceId/images",
   imageUpload.single("image"),
   asyncHandler(async (req, res) => {
-    const resourceId = Number(req.params.resourceId);
-    const resource = getDb().prepare("SELECT id FROM resources WHERE id = ?").get(resourceId);
-
-    if (!resource) {
-      throw new HttpError(404, "Resource not found");
-    }
-
     if (!req.file) {
       throw new HttpError(400, "Missing image file");
     }
+    try {
+      const resourceId = Number(req.params.resourceId);
+      const db = getDb();
+      const resource = db.prepare("SELECT id FROM resources WHERE id = ?").get(resourceId);
+      if (!resource) {
+        throw new HttpError(404, "Resource not found");
+      }
 
-    const shouldOcr = req.query.ocr !== "false";
-    const result = shouldOcr
-      ? await runOcr(req.file.path, req.file.originalname, req.file.mimetype)
-      : { rawText: "", elements: [] };
+      const shouldOcr = req.query.ocr !== "false";
+      const result = shouldOcr
+        ? await runOcr(req.file.path, req.file.originalname, req.file.mimetype, requestAbortSignal(req))
+        : { rawText: "", elements: [] };
+      const now = touchNow();
+      const persist = db.transaction(() => {
+        const saved = db
+          .prepare(
+            `INSERT INTO resource_images
+             (resource_id, file_path, original_name, mime_type, size_bytes, ocr_text, ocr_elements_json, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            resourceId,
+            relativeUploadPath(req.file!.path),
+            req.file!.originalname,
+            req.file!.mimetype,
+            req.file!.size,
+            result.rawText,
+            writeJson(result.elements),
+            now
+          );
+        const suggestedTerms = termsFromOcrElements(result.elements).map((term) => ({
+          ...term,
+          sourceImageId: Number(saved.lastInsertRowid)
+        }));
+        const trackedTerms = req.query.track === "true" ? upsertResourceTerms(resourceId, suggestedTerms) : [];
+        const image = db.prepare("SELECT * FROM resource_images WHERE id = ?").get(saved.lastInsertRowid);
+        return { image, suggestedTerms, trackedTerms };
+      });
+      const saved = persist();
 
-    const now = touchNow();
-    const saved = getDb()
-      .prepare(
-        `INSERT INTO resource_images
-         (resource_id, file_path, original_name, mime_type, size_bytes, ocr_text, ocr_elements_json, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        resourceId,
-        relativeUploadPath(req.file.path),
-        req.file.originalname,
-        req.file.mimetype,
-        req.file.size,
-        result.rawText,
-        writeJson(result.elements),
-        now
-      );
-
-    const image = getDb()
-      .prepare("SELECT * FROM resource_images WHERE id = ?")
-      .get(saved.lastInsertRowid);
-    const suggestedTerms = termsFromOcrElements(result.elements).map((term) => ({
-      ...term,
-      sourceImageId: Number(saved.lastInsertRowid)
-    }));
-    const trackedTerms =
-      req.query.track === "true" ? upsertResourceTerms(resourceId, suggestedTerms) : [];
-
-    res.status(201).json({
-      image: mapImage(image),
-      ocr: {
-        ...result,
-        terms: suggestedTerms
-      },
-      trackedTerms
-    });
+      res.status(201).json({
+        image: mapImage(saved.image),
+        ocr: { ...result, terms: saved.suggestedTerms },
+        trackedTerms: saved.trackedTerms
+      });
+    } catch (error) {
+      await removeUploadedFile(req.file.path);
+      throw error;
+    }
   })
 );
 
-async function runOcr(filePath: string, filename: string, mimeType: string) {
+async function runOcr(filePath: string, filename: string, mimeType: string, signal?: AbortSignal) {
   const response = await postFile<OcrResponse>(
     `${config.ocrServiceUrl}/ocr`,
     "image",
     filePath,
     filename,
-    mimeType
+    mimeType,
+    {},
+    { signal }
   );
 
   if (response.success === false) {
