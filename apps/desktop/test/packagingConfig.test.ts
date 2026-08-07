@@ -35,4 +35,10 @@ describe("desktop packaging identity", () => {
 
     expect(config).toMatch(/from:\s+resources\/icon\.png\s+to:\s+app-icon\.png/);
   });
+
+  it("packages only Kakomu-branded managed workers", () => {
+    const config = fs.readFileSync(path.join(desktopRoot, "electron-builder.yml"), "utf8");
+
+    expect(config).toMatch(/from:\s+sidecars\s+[\s\S]*?filter:\s+[\s\S]*?- "kakomu-\*"/);
+  });
 });

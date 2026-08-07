@@ -14,7 +14,7 @@ extraResources:
   - from: sidecars
     to: sidecars
     filter:
-      - "**/*"
+      - "kakomu-*"
   - from: resources/icon.png
     to: app-icon.png
 icon: resources/icon.png
