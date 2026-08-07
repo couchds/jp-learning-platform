@@ -37,6 +37,7 @@ mac:
   category: public.app-category.education
 linux:
   executableName: yomunami
+  maintainer: Yomunami
   syncDesktopName: true
   target:
     - AppImage

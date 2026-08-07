@@ -4,6 +4,7 @@
   "desktopName": "Yomunami",
   "version": "0.7.0",
   "description": "Desktop companion for the Yomunami Japanese learning platform.",
+  "homepage": "https://github.com/couchds/jp-learning-platform",
   "author": "Yomunami",
   "private": true,
   "type": "module",
