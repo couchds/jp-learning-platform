@@ -36,6 +36,8 @@ mac:
     - zip
   category: public.app-category.education
 linux:
+  executableName: yomunami
+  syncDesktopName: true
   target:
     - AppImage
     - deb

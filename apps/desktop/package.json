@@ -1,6 +1,7 @@
 {
   "name": "@jp-learning-platform/desktop",
   "productName": "Yomunami",
+  "desktopName": "Yomunami",
   "version": "0.7.0",
   "description": "Desktop companion for the Yomunami Japanese learning platform.",
   "author": "Yomunami",
@@ -11,7 +12,7 @@
     "start": "electron-vite dev",
     "build": "electron-vite build",
     "package": "npm run build && electron-builder --dir",
-    "make": "npm run build && electron-builder",
+    "make": "npm run build && electron-builder --publish never",
     "rebuild:native": "electron-builder install-app-deps",
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
