@@ -2,6 +2,7 @@ import type {
   Backup,
   DataSummary,
   Dashboard,
+  GrammarMatch,
   ImportJob,
   Kanji,
   KanjiGraph,
@@ -17,6 +18,7 @@ import type {
   ResourceDetail,
   ResourceTerm,
   RuntimeDoctor,
+  SavedGrammar,
   SentenceExample,
   ServiceHealth,
   Word
@@ -184,6 +186,21 @@ export const api = {
     method: "POST",
     body: JSON.stringify({ terms })
   }),
+  resourceGrammar: (id: number) =>
+    request<{ items: SavedGrammar[] }>(`/api/grammar/resources/${id}`),
+  addResourceGrammar: (id: number, matches: GrammarMatch[]) =>
+    request<{ items: SavedGrammar[] }>(`/api/grammar/resources/${id}`, {
+      method: "POST",
+      body: JSON.stringify({
+        matches: matches.map((match) => ({
+          conceptId: match.conceptId,
+          matchedText: match.matchedText,
+          sentence: match.sentence,
+          sourceImageId: match.sourceImageId,
+          confidence: match.confidence
+        }))
+      })
+    }),
   addResourceWord: (id: number, wordId: number, payload: { frequency?: number; notes?: string | null } = {}) =>
     request<void>(`/api/resources/${id}/words/${wordId}`, {
       method: "POST",

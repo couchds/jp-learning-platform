@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
-import { Check, Crosshair, Crop, FileImage, Monitor, RotateCcw, ScanText, Upload, X } from "lucide-react";
+import { Check, Crosshair, Crop, FileImage, Languages, Monitor, RotateCcw, ScanText, Upload, X } from "lucide-react";
 import { api } from "../api";
 import { captureToFile, fileToCapture, selectionFromPoints, type CapturePoint, type CaptureSelection } from "../captureImage";
 import { ResourcePicker } from "../components/ResourcePicker";
 import { getDesktopBridge, type DesktopCapture, type DesktopCaptureResult } from "../desktop";
-import type { OcrResult, Resource, ResourceTerm } from "../types";
+import type { GrammarMatch, OcrResult, Resource, ResourceTerm, SavedGrammar } from "../types";
 import { EmptyState } from "./shared";
 
 type SuggestedTerm = NonNullable<OcrResult["terms"]>[number];
+type SuggestedGrammar = NonNullable<OcrResult["grammarMatches"]>[number];
+
+const STRONG_GRAMMAR_CONFIDENCE = 0.85;
 
 export function CaptureView({
   desktopCapture,
@@ -26,10 +29,13 @@ export function CaptureView({
   const [draftSelection, setDraftSelection] = useState<CaptureSelection | null>(null);
   const [result, setResult] = useState<OcrResult | null>(null);
   const [savedTerms, setSavedTerms] = useState<ResourceTerm[]>([]);
+  const [savedGrammar, setSavedGrammar] = useState<SavedGrammar[]>([]);
   const [selectedTerms, setSelectedTerms] = useState<Set<string>>(new Set());
+  const [selectedGrammar, setSelectedGrammar] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingGrammar, setSavingGrammar] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +57,15 @@ export function CaptureView({
   }, [desktopCapture]);
 
   const suggestions = useMemo<SuggestedTerm[]>(() => result?.terms ?? [], [result]);
+  const grammarMatches = useMemo<SuggestedGrammar[]>(() => result?.grammarMatches ?? [], [result]);
+  const strongGrammar = useMemo(
+    () => grammarMatches.filter((match) => match.confidence >= STRONG_GRAMMAR_CONFIDENCE),
+    [grammarMatches]
+  );
+  const possibleGrammar = useMemo(
+    () => grammarMatches.filter((match) => match.confidence < STRONG_GRAMMAR_CONFIDENCE),
+    [grammarMatches]
+  );
   const selectedResource = resources.find((resource) => resource.id === selectedResourceId);
   const activeSelection = draftSelection ?? selection;
 
@@ -93,10 +108,16 @@ export function CaptureView({
         : await api.ocrImage(file);
       setResult(nextResult);
       setSavedTerms([]);
+      setSavedGrammar([]);
       setSelectedTerms(new Set((nextResult.terms ?? []).map(termKey)));
+      setSelectedGrammar(new Set(
+        (nextResult.grammarMatches ?? [])
+          .filter((match) => match.confidence >= STRONG_GRAMMAR_CONFIDENCE)
+          .map((match) => match.matchId)
+      ));
       setMessage(nextResult.rawText.trim()
-        ? selectedResourceId && nextResult.terms?.length
-          ? "Text found. Review the suggestions before saving them."
+        ? selectedResourceId && ((nextResult.terms?.length ?? 0) + (nextResult.grammarMatches?.length ?? 0) > 0)
+          ? "Text found. Review the vocabulary and grammar before saving."
           : "Text found."
         : "No Japanese text was found in this area.");
     } catch (requestError) {
@@ -124,13 +145,33 @@ export function CaptureView({
     }
   }
 
+  async function saveSelectedGrammar() {
+    if (!selectedResourceId) return;
+    const matches = grammarMatches.filter((match) => selectedGrammar.has(match.matchId));
+    if (!matches.length) return;
+    setSavingGrammar(true);
+    clearNotices();
+    try {
+      const response = await api.addResourceGrammar(selectedResourceId, matches);
+      setSavedGrammar(response.items);
+      setMessage(`Saved ${response.items.length} grammar match${response.items.length === 1 ? "" : "es"} to ${selectedResource?.name ?? "this resource"}.`);
+      onChange();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not save these grammar matches");
+    } finally {
+      setSavingGrammar(false);
+    }
+  }
+
   function openEditor(capture: DesktopCapture) {
     setImage(capture);
     setSelection(null);
     setDraftSelection(null);
     setResult(null);
     setSavedTerms([]);
+    setSavedGrammar([]);
     setSelectedTerms(new Set());
+    setSelectedGrammar(new Set());
     clearNotices();
   }
 
@@ -173,6 +214,15 @@ export function CaptureView({
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleGrammar(match: SuggestedGrammar) {
+    setSelectedGrammar((current) => {
+      const next = new Set(current);
+      if (next.has(match.matchId)) next.delete(match.matchId);
+      else next.add(match.matchId);
       return next;
     });
   }
@@ -226,6 +276,14 @@ export function CaptureView({
             >
               <img src={image.dataUrl} alt="Screen capture preview" draggable={false} />
               {activeSelection && <div className="capture-selection" style={selectionStyle(activeSelection)} aria-hidden="true" />}
+              {result && grammarMatches.map((match) => match.bbox && (
+                <div
+                  className={match.confidence >= STRONG_GRAMMAR_CONFIDENCE ? "grammar-highlight strong" : "grammar-highlight possible"}
+                  style={grammarBoxStyle(match, result, selection)}
+                  aria-hidden="true"
+                  key={match.matchId}
+                />
+              ))}
             </div>
             <aside className="capture-editor-tools">
               <div className="capture-source"><Monitor size={18} /><div><strong>{image.sourceName}</strong><span>{image.width} x {image.height}</span></div></div>
@@ -258,7 +316,7 @@ export function CaptureView({
       <section className="panel capture-results">
         <div className="panel-heading">
           <h2>Recognized text</h2>
-          {result && <span>{suggestions.length} suggested terms</span>}
+          {result && <span>{suggestions.length} terms · {grammarMatches.length} grammar</span>}
         </div>
         {!result ? (
           <EmptyState title="No image read yet" detail="Capture or choose an image, select the text, and run recognition." />
@@ -292,10 +350,88 @@ export function CaptureView({
                 {savedTerms.length > 0 && <p className="helper-text">These terms are now available in Library and Review.</p>}
               </div>
             )}
+            {result.rawText.trim() && (
+              <div className="grammar-review">
+                <div className="term-review-heading">
+                  <div className="grammar-review-title">
+                    <Languages size={19} aria-hidden="true" />
+                    <div><h3>Grammar</h3><span>{selectedResourceId ? "Save the patterns you want to remember." : "Choose a resource above to save grammar."}</span></div>
+                  </div>
+                  {selectedResourceId && grammarMatches.length > 0 && (
+                    <button
+                      className="primary-button"
+                      type="button"
+                      disabled={savingGrammar || selectedGrammar.size === 0}
+                      onClick={() => void saveSelectedGrammar()}
+                    >
+                      <Check size={17} /> {savingGrammar ? "Saving..." : `Save ${selectedGrammar.size} grammar match${selectedGrammar.size === 1 ? "" : "es"}`}
+                    </button>
+                  )}
+                </div>
+                {strongGrammar.length > 0 ? (
+                  <div className="grammar-match-list">
+                    {strongGrammar.map((match) => (
+                      <GrammarMatchRow
+                        checked={selectedGrammar.has(match.matchId)}
+                        match={match}
+                        onToggle={() => toggleGrammar(match)}
+                        key={match.matchId}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="grammar-empty">No clear grammar patterns were found in this capture.</p>
+                )}
+                {possibleGrammar.length > 0 && (
+                  <details className="possible-grammar">
+                    <summary>{possibleGrammar.length} possible match{possibleGrammar.length === 1 ? "" : "es"}</summary>
+                    <div className="grammar-match-list">
+                      {possibleGrammar.map((match) => (
+                        <GrammarMatchRow
+                          checked={selectedGrammar.has(match.matchId)}
+                          match={match}
+                          onToggle={() => toggleGrammar(match)}
+                          possible
+                          key={match.matchId}
+                        />
+                      ))}
+                    </div>
+                  </details>
+                )}
+                {savedGrammar.length > 0 && <p className="helper-text">These grammar examples are now available in Library.</p>}
+              </div>
+            )}
           </>
         )}
       </section>
     </section>
+  );
+}
+
+function GrammarMatchRow({
+  checked,
+  match,
+  onToggle,
+  possible = false
+}: {
+  checked: boolean;
+  match: GrammarMatch;
+  onToggle: () => void;
+  possible?: boolean;
+}) {
+  return (
+    <label className={checked ? "grammar-match-row selected" : "grammar-match-row"}>
+      <input type="checkbox" checked={checked} onChange={onToggle} />
+      <span className="grammar-match-copy">
+        <span className="grammar-match-heading">
+          <strong>{match.title}</strong>
+          <span className="grammar-level">{match.jlptLevel}</span>
+          {possible && <span className="grammar-confidence">Possible</span>}
+        </span>
+        <span><mark>{match.matchedText}</mark> · {match.pattern}</span>
+        <small>{match.explanation}</small>
+      </span>
+    </label>
   );
 }
 
@@ -310,4 +446,23 @@ function selectionStyle(selection: CaptureSelection) {
     width: `${selection.width * 100}%`,
     height: `${selection.height * 100}%`
   };
+}
+
+function grammarBoxStyle(match: GrammarMatch, result: OcrResult, selection: CaptureSelection | null) {
+  if (!match.bbox || !result.imageWidth || !result.imageHeight) return undefined;
+  const region = selection ?? { x: 0, y: 0, width: 1, height: 1 };
+  const x = clampUnit(match.bbox.x / result.imageWidth);
+  const y = clampUnit(match.bbox.y / result.imageHeight);
+  const width = Math.min(clampUnit(match.bbox.width / result.imageWidth), 1 - x);
+  const height = Math.min(clampUnit(match.bbox.height / result.imageHeight), 1 - y);
+  return {
+    left: `${(region.x + x * region.width) * 100}%`,
+    top: `${(region.y + y * region.height) * 100}%`,
+    width: `${width * region.width * 100}%`,
+    height: `${height * region.height * 100}%`
+  };
+}
+
+function clampUnit(value: number) {
+  return Math.max(0, Math.min(1, value));
 }

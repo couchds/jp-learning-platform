@@ -1387,6 +1387,20 @@
   pointer-events: none;
 }
 
+.grammar-highlight {
+  position: absolute;
+  z-index: 2;
+  border: 2px solid #f2b544;
+  background: rgba(255, 210, 92, 0.28);
+  box-shadow: 0 0 0 1px rgba(78, 54, 0, 0.32);
+  pointer-events: none;
+}
+
+.grammar-highlight.possible {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
 .capture-editor-tools,
 .capture-editor-actions,
 .capture-source,
@@ -1436,6 +1450,115 @@
 
 .term-review {
   margin-top: 16px;
+}
+
+.grammar-review {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.grammar-review-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.grammar-review-title > div,
+.grammar-match-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.grammar-review-title > svg {
+  color: var(--reef-teal);
+}
+
+.grammar-review-title h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.grammar-match-list {
+  border-top: 1px solid var(--surface-border);
+}
+
+.grammar-match-row {
+  min-height: 94px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 14px 8px;
+  border-bottom: 1px solid var(--surface-border);
+  cursor: pointer;
+}
+
+.grammar-match-row:hover,
+.grammar-match-row.selected {
+  background: #f5faf8;
+}
+
+.grammar-match-row input {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  accent-color: var(--reef-teal);
+}
+
+.grammar-match-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.grammar-level,
+.grammar-confidence {
+  border-radius: 4px;
+  padding: 2px 6px;
+  background: #e6f5f2;
+  color: #0b6f5d;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.grammar-confidence {
+  background: #fff4d6;
+  color: #765200;
+}
+
+.grammar-match-copy > span:not(.grammar-match-heading),
+.grammar-match-copy small,
+.grammar-empty {
+  color: var(--muted-ink);
+}
+
+.grammar-match-copy mark {
+  padding: 1px 3px;
+  background: #fff0ba;
+  color: var(--ink);
+}
+
+.grammar-match-copy small {
+  line-height: 1.45;
+}
+
+.grammar-empty {
+  margin: 0;
+}
+
+.possible-grammar summary {
+  width: fit-content;
+  color: var(--muted-ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.possible-grammar[open] summary {
+  margin-bottom: 8px;
 }
 
 .term-review-heading {

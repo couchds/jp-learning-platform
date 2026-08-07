@@ -44,7 +44,7 @@ test.beforeEach(async () => {
       request.resume();
       request.once("end", () => response.end(JSON.stringify({
         success: true,
-        raw_text: "日本語",
+        raw_text: "日本語を勉強しています",
         elements: [],
         backend: "test",
         active_backend: "test",
@@ -193,7 +193,9 @@ test("sends a desktop capture through the private API to OCR", async () => {
   await page.getByRole("button", { name: "Capture screen" }).click();
   await page.getByRole("button", { name: "Read full image" }).click();
 
-  await expect(page.locator(".ocr-text")).toHaveText("日本語");
+  await expect(page.locator(".ocr-text")).toHaveText("日本語を勉強しています");
+  await expect(page.getByRole("heading", { name: "Grammar" })).toBeVisible();
+  await expect(page.getByText("Ongoing action or state")).toBeVisible();
   await expect(page.getByText("Failed to fetch")).toHaveCount(0);
 });
 

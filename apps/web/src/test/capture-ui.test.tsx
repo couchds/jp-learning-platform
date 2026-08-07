@@ -10,7 +10,8 @@ vi.mock("../api", () => ({
     resources: vi.fn(),
     ocrResourceImage: vi.fn(),
     ocrImage: vi.fn(),
-    addResourceTerms: vi.fn()
+    addResourceTerms: vi.fn(),
+    addResourceGrammar: vi.fn()
   }
 }));
 
@@ -69,12 +70,29 @@ describe("integrated desktop OCR", () => {
       image: { id: 12 },
       trackedTerms: [],
       ocr: {
-        rawText: "日本語",
+        rawText: "日本語を勉強しています",
         elements: [],
         terms: [
           { termType: "word", text: "日本語", reading: "にほんご", meaning: "Japanese", source: "ocr", sourceImageId: 12, frequency: 1, notes: null },
           { termType: "kanji", text: "日", reading: null, meaning: null, source: "ocr", sourceImageId: 12, frequency: 1, notes: null }
-        ]
+        ],
+        grammarMatches: [{
+          matchId: "te-iru:6:10",
+          conceptId: "te-iru",
+          title: "Ongoing action or state",
+          pattern: "-te iru / -de iru",
+          explanation: "Describes an action in progress or a continuing state.",
+          jlptLevel: "N5",
+          matchedText: "ています",
+          sentence: "日本語を勉強しています",
+          start: 6,
+          end: 10,
+          confidence: 0.94,
+          sourceImageId: 12,
+          bbox: { x: 100, y: 30, width: 90, height: 28 }
+        }],
+        imageWidth: 1280,
+        imageHeight: 720
       }
     });
     vi.mocked(api.addResourceTerms).mockResolvedValue({
@@ -93,17 +111,41 @@ describe("integrated desktop OCR", () => {
         updatedAt: "2026-08-07T00:00:00.000Z"
       }]
     });
+    vi.mocked(api.addResourceGrammar).mockResolvedValue({
+      items: [{
+        id: 31,
+        resourceId: 7,
+        conceptId: "te-iru",
+        title: "Ongoing action or state",
+        pattern: "-te iru / -de iru",
+        explanation: "Describes an action in progress or a continuing state.",
+        jlptLevel: "N5",
+        matchedText: "ています",
+        sentence: "日本語を勉強しています",
+        confidence: 0.94,
+        sourceImageId: 12,
+        frequency: 1,
+        createdAt: "2026-08-07T00:00:00.000Z",
+        updatedAt: "2026-08-07T00:00:00.000Z"
+      }]
+    });
 
     render(<CaptureView desktopCapture={{ ok: true, capture }} onChange={() => undefined} />);
     fireEvent.click(await screen.findByRole("button", { name: "Read full image" }));
     expect(await screen.findByRole("button", { name: "Save 2" })).toBeInTheDocument();
+    expect(screen.getByText("Ongoing action or state")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save 1 grammar match" })).toBeInTheDocument();
+    expect(document.querySelector(".grammar-highlight")).toBeInTheDocument();
 
-    const checkboxes = screen.getAllByRole("checkbox");
-    fireEvent.click(checkboxes[1]);
+    const termCheckboxes = document.querySelectorAll(".term-card input");
+    fireEvent.click(termCheckboxes[1]);
     fireEvent.click(screen.getByRole("button", { name: "Save 1" }));
 
     await waitFor(() => expect(api.addResourceTerms).toHaveBeenCalledWith(7, [expect.objectContaining({ text: "日本語" })]));
     expect(screen.getByText("Saved 1 term to Persona 5.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save 1 grammar match" }));
+    await waitFor(() => expect(api.addResourceGrammar).toHaveBeenCalledWith(7, [expect.objectContaining({ conceptId: "te-iru" })]));
+    expect(screen.getByText("Saved 1 grammar match to Persona 5.")).toBeInTheDocument();
     expect(captureToFile).toHaveBeenCalledWith(capture, null);
   });
 });

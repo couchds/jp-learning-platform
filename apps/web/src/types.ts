@@ -130,6 +130,36 @@ export type SentenceExample = {
   updatedAt: string;
 };
 
+export type GrammarMatch = {
+  matchId: string;
+  conceptId: string;
+  title: string;
+  pattern: string;
+  explanation: string;
+  jlptLevel: "N5" | "N4";
+  matchedText: string;
+  sentence: string;
+  start: number;
+  end: number;
+  confidence: number;
+  sourceImageId?: number;
+  bbox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+};
+
+export type SavedGrammar = Omit<GrammarMatch, "matchId" | "start" | "end" | "bbox" | "sourceImageId"> & {
+  id: number;
+  resourceId: number;
+  sourceImageId: number;
+  frequency: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type KanjiGraph = {
   center: Kanji;
   nodes: Array<{
@@ -309,6 +339,7 @@ export type OcrResult = {
     bbox_source?: string;
   }>;
   terms?: Array<Omit<ResourceTerm, "id" | "resourceId" | "createdAt" | "updatedAt">>;
+  grammarMatches?: GrammarMatch[];
   backend?: string;
   activeBackend?: string;
   boxesAvailable?: boolean;
