@@ -2,7 +2,7 @@
   "name": "@jp-learning-platform/desktop",
   "productName": "Kakomu",
   "desktopName": "Kakomu",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Desktop app for the Kakomu Japanese learning platform.",
   "homepage": "https://github.com/couchds/jp-learning-platform",
   "author": "Kakomu",

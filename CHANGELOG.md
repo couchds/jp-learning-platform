@@ -6,6 +6,7 @@ This project follows semantic versioning.
 
 ## Unreleased
 
+- Detect foundational N5 grammar from OCR token context and align detected matches with the capture UI contract.
 - Rename the product from Yomunami to Kakomu across the app, installers, managed workers, protocols, documentation, and CI artifacts.
 - Migrate existing Yomunami desktop data on first launch while retaining compatibility aliases for released integrations.
 - Move screen capture, cropping, OCR review, and selective term saving into the Electron client.
