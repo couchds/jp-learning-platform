@@ -998,7 +998,7 @@
 
 .tracker-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1154,6 +1154,51 @@
   color: var(--midnight-current);
   padding: 5px 8px;
   text-align: center;
+}
+
+.resource-grammar-list {
+  border-top: 1px solid var(--surface-border);
+}
+
+.resource-grammar-row {
+  display: grid;
+  gap: 7px;
+  padding: 14px 8px;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.resource-grammar-heading,
+.resource-grammar-row > div:not(.resource-grammar-heading) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.resource-grammar-heading span {
+  border-radius: 4px;
+  padding: 2px 6px;
+  background: #e6f5f2;
+  color: #0b6f5d;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.resource-grammar-row mark {
+  padding: 1px 3px;
+  background: #fff0ba;
+  color: var(--ink);
+}
+
+.resource-grammar-row p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.resource-grammar-row > div:not(.resource-grammar-heading) span,
+.resource-grammar-row small {
+  color: var(--muted-ink);
 }
 
 .quiz-card {
@@ -1823,6 +1868,10 @@
   .metrics-grid,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .tracker-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .nav-list {

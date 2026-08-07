@@ -52,6 +52,7 @@ import type {
   ResourceDetail,
   ResourceTerm,
   RuntimeDoctor,
+  SavedGrammar,
   SentenceExample,
   ServiceHealth,
   Word
@@ -68,6 +69,7 @@ export function TrackerView({ onChange }: { onChange: () => void }) {
     loading: false,
     error: null
   });
+  const [grammar, setGrammar] = useState<SavedGrammar[]>([]);
   const [form, setForm] = useState({
     text: "",
     termType: "word" as ResourceTerm["termType"],
@@ -140,8 +142,14 @@ export function TrackerView({ onChange }: { onChange: () => void }) {
   async function loadDetail(resourceId: number) {
     setDetail((current) => ({ ...current, loading: true, error: null }));
     try {
-      setDetail({ data: await api.resource(resourceId), loading: false, error: null });
+      const [resourceDetail, grammarResponse] = await Promise.all([
+        api.resource(resourceId),
+        api.resourceGrammar(resourceId)
+      ]);
+      setDetail({ data: resourceDetail, loading: false, error: null });
+      setGrammar(grammarResponse.items);
     } catch (requestError) {
+      setGrammar([]);
       setDetail({
         data: null,
         loading: false,
@@ -202,7 +210,7 @@ export function TrackerView({ onChange }: { onChange: () => void }) {
   const wordCount = terms.filter((term) => term.termType === "word").length + dictionaryWords.length;
   const selectedResource = resources.find((resource) => resource.id === selectedResourceId);
   const trackedWordIds = new Set(dictionaryWords.map((word) => word.id));
-  const trackedCount = terms.length + dictionaryWords.length;
+  const trackedCount = terms.length + dictionaryWords.length + grammar.length;
 
   return (
     <section className="tracker-layout">
@@ -221,7 +229,7 @@ export function TrackerView({ onChange }: { onChange: () => void }) {
         <div className="tracker-metrics">
           <article>
             <strong>{trackedCount}</strong>
-            <span>Total terms</span>
+            <span>All items</span>
           </article>
           <article>
             <strong>{kanjiCount}</strong>
@@ -230,6 +238,10 @@ export function TrackerView({ onChange }: { onChange: () => void }) {
           <article>
             <strong>{wordCount}</strong>
             <span>Words</span>
+          </article>
+          <article>
+            <strong>{grammar.length}</strong>
+            <span>Grammar</span>
           </article>
         </div>
         <section className="tracker-lookup-panel">
@@ -347,14 +359,14 @@ export function TrackerView({ onChange }: { onChange: () => void }) {
 
       <section className="panel">
         <div className="panel-heading">
-          <h2>{selectedResource?.name ?? "Resource Terms"}</h2>
+          <h2>{selectedResource?.name ?? "Resource Items"}</h2>
           <span>{detail.loading ? "loading" : `${trackedCount} tracked`}</span>
         </div>
         {detail.error && <p className="error-text">{detail.error}</p>}
         {!selectedResourceId ? (
-          <EmptyState title="Pick a resource" detail="Tracked OCR terms and manual vocabulary are grouped by source." />
+          <EmptyState title="Pick a resource" detail="Vocabulary, kanji, and grammar examples are grouped by source." />
         ) : trackedCount === 0 ? (
-          <EmptyState title="No terms yet" detail="Look up a dictionary word, use Capture, or add a term manually." />
+          <EmptyState title="Nothing tracked yet" detail="Use Capture, look up a dictionary word, or add a term manually." />
         ) : (
           <div className="tracked-resource-content">
             {dictionaryWords.length > 0 && (
@@ -394,6 +406,27 @@ export function TrackerView({ onChange }: { onChange: () => void }) {
                       <span>{term.reading || "-"}</span>
                       <span>{term.meaning || term.notes || "-"}</span>
                       <small>{term.frequency}x</small>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+            {grammar.length > 0 && (
+              <section>
+                <div className="section-subheading">
+                  <h3>Grammar examples</h3>
+                  <span>{grammar.length}</span>
+                </div>
+                <div className="resource-grammar-list">
+                  {grammar.map((item) => (
+                    <article className="resource-grammar-row" key={item.id}>
+                      <div className="resource-grammar-heading">
+                        <strong>{item.title}</strong>
+                        <span>{item.jlptLevel}</span>
+                      </div>
+                      <div><mark>{item.matchedText}</mark><span>{item.pattern}</span></div>
+                      <p lang="ja">{item.sentence}</p>
+                      <small>{item.explanation}</small>
                     </article>
                   ))}
                 </div>
