@@ -6,6 +6,14 @@ This project follows semantic versioning.
 
 ## Unreleased
 
+## 0.9.0 - 2026-08-07
+
+- Save every resource-linked OCR capture as a durable image, including cropped selections.
+- Browse a resource's captures with previous/next controls, thumbnails, timestamps, and deletion.
+- Show OCR-derived words and grammar for each individual saved image, with saved-item indicators.
+- Link Library resources directly to their saved images and preserve resource routes in the packaged desktop app.
+- Add API isolation tests, image-browser component tests, and an Electron capture-to-gallery workflow test.
+
 - Detect foundational N5 grammar from OCR token context and align detected matches with the capture UI contract.
 - Rename the product from Yomunami to Kakomu across the app, installers, managed workers, protocols, documentation, and CI artifacts.
 - Migrate existing Yomunami desktop data on first launch while retaining compatibility aliases for released integrations.
