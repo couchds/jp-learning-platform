@@ -44,7 +44,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  await app.close();
+  await app?.close();
   await fs.rm(userDataDir, { recursive: true, force: true });
 });
 
@@ -117,6 +117,18 @@ test("routes global capture events into the in-app editor", async () => {
   await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThanOrEqual(390);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("capture-editor-narrow.png"), fullPage: true });
+});
+
+test("keeps OCR available in the background after the window is closed", async () => {
+  const browserWindow = await app.browserWindow(page);
+  await browserWindow.evaluate((window) => window.close());
+
+  await expect.poll(() => browserWindow.evaluate((window) => window.isVisible())).toBe(false);
+  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
+
+  const result = await page.evaluate(() => window.yomunamiDesktop!.capture());
+  expect(result.ok).toBe(true);
+  await expect.poll(() => browserWindow.evaluate((window) => window.isVisible())).toBe(true);
 });
 
 test("keeps primary tasks usable in a narrow desktop window", async () => {

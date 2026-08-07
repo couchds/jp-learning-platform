@@ -41,7 +41,7 @@ Start the complete desktop app:
 npm run dev:desktop
 ```
 
-The desktop main process chooses a private API port, stores data outside the repository, supervises available workers, owns native screen capture and the global capture command, and shuts everything down with the app. Captures return to the main window for cropping, OCR review, and selective term saving.
+The desktop main process chooses a private API port, stores data outside the repository, supervises available workers, and owns native screen capture. Press `Ctrl/Cmd+Shift+O` from any application to capture the display under the pointer. Closing the window keeps Yomunami and OCR available in the system tray; use the tray's Quit command to stop the app and its services. Captures return to the main window for cropping, OCR review, and selective term saving.
 
 ## Web Development
 

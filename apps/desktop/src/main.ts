@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
 import { resolveDesktopRuntimePaths } from "./runtimePaths.js";
 import { captureCurrentDisplay, type DesktopCaptureResult } from "./screenCapture.js";
 import { createServiceDefinitions } from "./serviceDefinitions.js";
@@ -12,14 +12,15 @@ type RunningBackend = {
   close: () => Promise<void>;
 };
 
-const hasSingleInstanceLock = app.requestSingleInstanceLock();
-if (!hasSingleInstanceLock) app.quit();
-
 if (process.env.YOMUNAMI_USER_DATA_DIR) {
   app.setPath("userData", path.resolve(process.env.YOMUNAMI_USER_DATA_DIR));
 }
 
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) app.quit();
+
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 let backend: RunningBackend | null = null;
 let supervisor: ServiceSupervisor | null = null;
 let shuttingDown = false;
@@ -47,10 +48,6 @@ void app.whenReady().then(boot).catch((error) => {
 app.on("activate", () => {
   if (!mainWindow) void createMainWindow();
   else showMainWindow();
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", (event) => {
@@ -83,6 +80,7 @@ async function boot() {
   );
   registerIpc();
   registerCaptureShortcut();
+  createTray();
   await createMainWindow();
   if (process.env.YOMUNAMI_SKIP_SERVICES !== "1") void supervisor.startOnLaunch();
 }
@@ -123,6 +121,11 @@ async function createMainWindow() {
   });
   mainWindow = window;
   window.once("ready-to-show", () => window.show());
+  window.on("close", (event) => {
+    if (shuttingDown) return;
+    event.preventDefault();
+    window.hide();
+  });
   window.on("closed", () => {
     if (mainWindow === window) mainWindow = null;
   });
@@ -166,6 +169,28 @@ function registerCaptureShortcut() {
   if (!registered) void appendServiceLog("desktop", "stderr", "Could not register Ctrl/Cmd+Shift+O\n");
 }
 
+function createTray() {
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, "app-icon.png")
+    : path.join(app.getAppPath(), "resources", "icon.png");
+  const icon = nativeImage.createFromPath(iconPath);
+  if (icon.isEmpty()) {
+    void appendServiceLog("desktop", "stderr", `Could not load tray icon from ${iconPath}\n`);
+    return;
+  }
+
+  tray = new Tray(icon.resize({ width: 20, height: 20 }));
+  tray.setToolTip("Yomunami");
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "Open Yomunami", click: showMainWindow },
+    { label: "Capture screen", click: () => void captureFromShortcut() },
+    { type: "separator" },
+    { label: "Quit", click: () => app.quit() }
+  ]));
+  tray.on("click", showMainWindow);
+  tray.on("double-click", showMainWindow);
+}
+
 async function captureFromShortcut() {
   const result = await requestCapture();
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -204,6 +229,8 @@ function isTrustedNavigation(url: string) {
 
 async function shutdown() {
   globalShortcut.unregisterAll();
+  tray?.destroy();
+  tray = null;
   await supervisor?.stopAll();
   await backend?.close();
 }

@@ -21,4 +21,10 @@ describe("desktop packaging identity", () => {
     expect(packageJson.homepage).toBe("https://github.com/couchds/jp-learning-platform");
     expect(packageJson.scripts?.make).toContain("--publish never");
   });
+
+  it("packages the application icon for the persistent system tray", () => {
+    const config = fs.readFileSync(path.join(desktopRoot, "electron-builder.yml"), "utf8");
+
+    expect(config).toMatch(/from:\s+resources\/icon\.png\s+to:\s+app-icon\.png/);
+  });
 });

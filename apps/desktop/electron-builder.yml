@@ -14,6 +14,8 @@ extraResources:
     to: sidecars
     filter:
       - "**/*"
+  - from: resources/icon.png
+    to: app-icon.png
 icon: resources/icon.png
 electronFuses:
   runAsNode: false
