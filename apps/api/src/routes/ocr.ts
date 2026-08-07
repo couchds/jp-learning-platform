@@ -3,6 +3,7 @@ import { Router } from "express";
 import { config } from "../config.js";
 import { getDb, readJson, touchNow, writeJson } from "../db/index.js";
 import { asyncHandler, HttpError, requestAbortSignal } from "../lib/http.js";
+import { detectGrammar } from "../services/grammar.js";
 import { imageUpload, relativeUploadPath } from "../services/localUpload.js";
 import { termsFromOcrElements, upsertResourceTerms } from "../services/ocrTerms.js";
 import { postFile } from "../services/serviceProxy.js";
@@ -142,9 +143,12 @@ async function runOcr(filePath: string, filename: string, mimeType: string, sign
     throw new HttpError(502, response.error ?? "OCR service failed", response);
   }
 
+  const rawText = response.rawText ?? response.raw_text ?? "";
+  const elements = response.elements ?? [];
   return {
-    rawText: response.rawText ?? response.raw_text ?? "",
-    elements: response.elements ?? [],
+    rawText,
+    elements,
+    grammarMatches: detectGrammar(rawText, elements),
     backend: response.backend,
     activeBackend: response.active_backend,
     boxesAvailable: response.boxes_available,
