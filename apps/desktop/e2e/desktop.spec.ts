@@ -45,7 +45,12 @@ test.beforeEach(async () => {
       request.once("end", () => response.end(JSON.stringify({
         success: true,
         raw_text: "日本語を勉強しています",
-        elements: [],
+        elements: [
+          { text: "日本語", element_type: "vocabulary", confidence: 0.98, detection_index: 0, features: { pos1: "名詞" } },
+          { text: "を", element_type: "hiragana", confidence: 0.98, detection_index: 0, features: { pos1: "助詞" } },
+          { text: "勉強", element_type: "vocabulary", confidence: 0.98, detection_index: 0, features: { pos1: "名詞" } },
+          { text: "しています", element_type: "vocabulary", confidence: 0.98, detection_index: 0, features: { pos1: "動詞" } }
+        ],
         backend: "test",
         active_backend: "test",
         boxes_available: false,
@@ -198,6 +203,43 @@ test("sends a desktop capture through the private API to OCR", async () => {
   await expect(page.getByRole("heading", { name: "Grammar" })).toBeVisible();
   await expect(page.getByText("Ongoing action or state")).toBeVisible();
   await expect(page.getByText("Failed to fetch")).toHaveCount(0);
+});
+
+test("saves a capture and reopens its words and grammar from the resource library", async () => {
+  const resourceId = await page.evaluate(async () => {
+    const runtime = await window.kakomuDesktop!.getRuntime();
+    const response = await fetch(`${runtime.apiUrl}/api/resources`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-kakomu-token": runtime.apiToken
+      },
+      body: JSON.stringify({
+        name: "Persona 5",
+        type: "video_game",
+        status: "in_progress",
+        tags: ["game"]
+      })
+    });
+    const payload = await response.json();
+    return payload.resource.id as number;
+  });
+
+  await page.getByRole("link", { name: "Capture" }).click();
+  await page.getByRole("button", { name: "Capture screen" }).click();
+  await page.getByRole("button", { name: "Save and read image" }).click();
+  await expect(page.getByText("Image saved to Persona 5. Review the vocabulary and grammar below.")).toBeVisible();
+
+  await page.getByRole("link", { name: "Library" }).click();
+  await page.getByRole("link", { name: "View images and terms" }).click();
+  await expect(page).toHaveURL(new RegExp(`#/tracker[?]resource=${resourceId}$`));
+  await expect(page.getByRole("heading", { name: "Saved images" })).toBeVisible();
+  await expect(page.getByText("Image 1 of 1")).toBeVisible();
+  await expect(page.getByText("日本語", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ongoing action or state")).toBeVisible();
+  await expect(page.locator(".resource-picker option").filter({ hasText: "Persona 5" })).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath("resource-image-library.png"), fullPage: true });
 });
 
 test("keeps OCR available in the background after the window is closed", async () => {

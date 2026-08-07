@@ -54,7 +54,7 @@ const viewLabels: Record<View, string> = {
   capture: "Capture",
   runtime: "Runtime details",
   resources: "Library",
-  tracker: "Resource terms",
+  tracker: "Resource library",
   quiz: "Quiz",
   review: "Review",
   lookup: "Search",
@@ -70,7 +70,7 @@ const viewSummaries: Record<View, string> = {
   capture: "Turn Japanese on your screen into study material.",
   runtime: "Detailed diagnostics for this installation.",
   resources: "The games, books, shows, and sites you are studying.",
-  tracker: "Words and kanji collected from a resource.",
+  tracker: "Saved images, words, kanji, and grammar from one resource.",
   quiz: "Practice material from one resource.",
   review: "Strengthen words and kanji that are due.",
   lookup: "Find a word or kanji and add it to your learning history.",
@@ -181,6 +181,6 @@ export function App() {
 }
 
 function viewFromLocation(): View {
-  const route = window.location.hash.startsWith("#/") ? window.location.hash.slice(1) : window.location.pathname;
+  const route = (window.location.hash.startsWith("#/") ? window.location.hash.slice(1) : window.location.pathname).split("?")[0];
   return routeViews.get(route) ?? "home";
 }

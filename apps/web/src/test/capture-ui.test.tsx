@@ -62,12 +62,24 @@ describe("integrated desktop OCR", () => {
 
     expect(await screen.findByRole("img", { name: "Screen capture preview" })).toBeInTheDocument();
     expect(screen.getByText("Main display")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Read full image" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Save and read image" })).toBeInTheDocument();
   });
 
   it("reviews suggestions and saves only checked terms", async () => {
     vi.mocked(api.ocrResourceImage).mockResolvedValue({
-      image: { id: 12 },
+      image: {
+        id: 12,
+        resourceId: 7,
+        filePath: "resources/7/capture.png",
+        imageUrl: "/uploads/resources/7/capture.png",
+        originalName: "capture.png",
+        mimeType: "image/png",
+        sizeBytes: 7,
+        ocrText: "日本語を勉強しています",
+        ocrElements: [],
+        createdAt: "2026-08-07T00:00:00.000Z",
+        updatedAt: "2026-08-07T00:00:00.000Z"
+      },
       trackedTerms: [],
       ocr: {
         rawText: "日本語を勉強しています",
@@ -131,8 +143,9 @@ describe("integrated desktop OCR", () => {
     });
 
     render(<CaptureView desktopCapture={{ ok: true, capture }} onChange={() => undefined} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Read full image" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Save and read image" }));
     expect(await screen.findByRole("button", { name: "Save 2" })).toBeInTheDocument();
+    expect(screen.getByText("Image saved to Persona 5. Review the vocabulary and grammar below.")).toBeInTheDocument();
     expect(screen.getByText("Ongoing action or state")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save 1 grammar match" })).toBeInTheDocument();
     expect(document.querySelector(".grammar-highlight")).toBeInTheDocument();

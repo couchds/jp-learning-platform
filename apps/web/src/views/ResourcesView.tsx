@@ -65,8 +65,8 @@ export function ResourcesView({ onChange }: { onChange: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") ?? "");
-  const [page, setPage] = useState({ limit: 20, offset: Number(new URLSearchParams(window.location.search).get("offset") ?? 0) || 0, total: 0 });
+  const [search, setSearch] = useState(() => resourceSearchParams().get("q") ?? "");
+  const [page, setPage] = useState({ limit: 20, offset: Number(resourceSearchParams().get("offset") ?? 0) || 0, total: 0 });
   const [form, setForm] = useState({
     name: "",
     type: "manga",
@@ -87,7 +87,7 @@ export function ResourcesView({ onChange }: { onChange: () => void }) {
     try {
       const params = new URLSearchParams({ limit: String(page.limit), offset: String(page.offset) });
       if (search.trim()) params.set("search", search.trim());
-      window.history.replaceState(null, "", `/resources?${new URLSearchParams({ ...(search.trim() ? { q: search.trim() } : {}), ...(page.offset ? { offset: String(page.offset) } : {}) })}`);
+      replaceResourceLocation(search, page.offset);
       const result = await api.resources(`?${params}`);
       setResources(result.items);
       setPage(result.page);
@@ -214,6 +214,10 @@ export function ResourcesView({ onChange }: { onChange: () => void }) {
                     <span key={tag}>{tag}</span>
                   ))}
                 </div>
+                <a className="resource-open-link" href={resourceTrackerHref(resource.id)}>
+                  <FileImage size={16} aria-hidden="true" />
+                  View images and terms
+                </a>
               </article>
             ))}
           </div>
@@ -222,4 +226,23 @@ export function ResourcesView({ onChange }: { onChange: () => void }) {
       </section>
     </section>
   );
+}
+
+function resourceTrackerHref(resourceId: number) {
+  const route = `/tracker?resource=${resourceId}`;
+  return window.location.protocol === "file:" ? `#${route}` : route;
+}
+
+function resourceSearchParams() {
+  const hashQuery = window.location.hash.includes("?") ? window.location.hash.split("?")[1] : "";
+  return new URLSearchParams(hashQuery || window.location.search);
+}
+
+function replaceResourceLocation(search: string, offset: number) {
+  const query = new URLSearchParams({
+    ...(search.trim() ? { q: search.trim() } : {}),
+    ...(offset ? { offset: String(offset) } : {})
+  }).toString();
+  const route = `/resources${query ? `?${query}` : ""}`;
+  window.history.replaceState(null, "", window.location.protocol === "file:" ? `#${route}` : route);
 }

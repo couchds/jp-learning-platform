@@ -16,6 +16,8 @@ import type {
   RecognitionResult,
   Resource,
   ResourceDetail,
+  ResourceImage,
+  ResourceImageDetail,
   ResourceTerm,
   RuntimeDoctor,
   SavedGrammar,
@@ -153,6 +155,15 @@ export const api = {
       body: JSON.stringify(resource)
     }),
   resource: (id: number) => request<ResourceDetail>(`/api/resources/${id}`),
+  resourceImage: (resourceId: number, imageId: number) =>
+    request<ResourceImageDetail>(`/api/resources/${resourceId}/images/${imageId}`),
+  deleteResourceImage: (resourceId: number, imageId: number) =>
+    request<void>(`/api/resources/${resourceId}/images/${imageId}`, { method: "DELETE" }),
+  assetUrl: async (path: string) => {
+    const runtime = await getDesktopRuntime();
+    const baseUrl = runtime?.apiUrl ?? WEB_API_URL;
+    return new URL(path, `${baseUrl.replace(/\/$/, "")}/`).toString();
+  },
   resourceTerms: (id: number) => request<Page<ResourceTerm>>(`/api/resources/${id}/terms?limit=100`),
   addResourceTerm: (
     id: number,
@@ -258,7 +269,7 @@ export const api = {
   ocrResourceImage: (resourceId: number, file: File, track = true) => {
     const form = new FormData();
     form.append("image", file);
-    return request<{ image: unknown; ocr: OcrResult; trackedTerms: ResourceTerm[] }>(
+    return request<{ image: ResourceImage; ocr: OcrResult; trackedTerms: ResourceTerm[] }>(
       `/api/ocr/resources/${resourceId}/images?track=${track ? "true" : "false"}`,
       {
         method: "POST",

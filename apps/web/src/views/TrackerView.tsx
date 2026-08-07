@@ -60,10 +60,11 @@ import type {
 
 import { EmptyState, emptyDashboard, type Loadable, type View } from "./shared";
 import { ResourcePicker } from "../components/ResourcePicker";
+import { ResourceImageBrowser } from "../components/ResourceImageBrowser";
 
 export function TrackerView({ onChange }: { onChange: () => void }) {
   const [resources, setResources] = useState<Resource[]>([]);
-  const [selectedResourceId, setSelectedResourceId] = useState<number | null>(null);
+  const [selectedResourceId, setSelectedResourceId] = useState<number | null>(() => resourceIdFromLocation());
   const [detail, setDetail] = useState<Loadable<ResourceDetail>>({
     data: null,
     loading: false,
@@ -204,13 +205,30 @@ export function TrackerView({ onChange }: { onChange: () => void }) {
     }
   }
 
+  async function deleteImage(imageId: number) {
+    if (!selectedResourceId) return;
+    setMessage(null);
+    try {
+      await api.deleteResourceImage(selectedResourceId, imageId);
+      await loadDetail(selectedResourceId);
+      setMessage("Saved image deleted.");
+      onChange();
+    } catch (requestError) {
+      setDetail((current) => ({
+        ...current,
+        error: requestError instanceof Error ? requestError.message : "Could not delete this image"
+      }));
+    }
+  }
+
   const terms = detail.data?.terms ?? [];
   const dictionaryWords = detail.data?.words ?? [];
+  const images = detail.data?.images ?? [];
   const kanjiCount = terms.filter((term) => term.termType === "kanji").length;
   const wordCount = terms.filter((term) => term.termType === "word").length + dictionaryWords.length;
-  const selectedResource = resources.find((resource) => resource.id === selectedResourceId);
+  const selectedResource = detail.data?.resource ?? resources.find((resource) => resource.id === selectedResourceId);
   const trackedWordIds = new Set(dictionaryWords.map((word) => word.id));
-  const trackedCount = terms.length + dictionaryWords.length + grammar.length;
+  const trackedCount = images.length + terms.length + dictionaryWords.length + grammar.length;
 
   return (
     <section className="tracker-layout">
@@ -242,6 +260,10 @@ export function TrackerView({ onChange }: { onChange: () => void }) {
           <article>
             <strong>{grammar.length}</strong>
             <span>Grammar</span>
+          </article>
+          <article>
+            <strong>{images.length}</strong>
+            <span>Images</span>
           </article>
         </div>
         <section className="tracker-lookup-panel">
@@ -369,6 +391,9 @@ export function TrackerView({ onChange }: { onChange: () => void }) {
           <EmptyState title="Nothing tracked yet" detail="Use Capture, look up a dictionary word, or add a term manually." />
         ) : (
           <div className="tracked-resource-content">
+            {selectedResourceId && images.length > 0 && (
+              <ResourceImageBrowser resourceId={selectedResourceId} images={images} onDelete={deleteImage} />
+            )}
             {dictionaryWords.length > 0 && (
               <section>
                 <div className="section-subheading">
@@ -441,4 +466,11 @@ export function TrackerView({ onChange }: { onChange: () => void }) {
 
 function wordDisplay(word: Word) {
   return word.kanjiForms[0] ?? word.readings[0] ?? `#${word.entryId}`;
+}
+
+function resourceIdFromLocation() {
+  const hashQuery = window.location.hash.includes("?") ? window.location.hash.split("?")[1] : "";
+  const value = new URLSearchParams(hashQuery || window.location.search).get("resource");
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
 }

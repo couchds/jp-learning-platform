@@ -4,7 +4,7 @@ import { api } from "../api";
 import { captureToFile, fileToCapture, selectionFromPoints, type CapturePoint, type CaptureSelection } from "../captureImage";
 import { ResourcePicker } from "../components/ResourcePicker";
 import { getDesktopBridge, type DesktopCapture, type DesktopCaptureResult } from "../desktop";
-import type { GrammarMatch, OcrResult, Resource, ResourceTerm, SavedGrammar } from "../types";
+import type { GrammarMatch, OcrResult, Resource, ResourceImage, ResourceTerm, SavedGrammar } from "../types";
 import { EmptyState } from "./shared";
 
 type SuggestedTerm = NonNullable<OcrResult["terms"]>[number];
@@ -28,6 +28,7 @@ export function CaptureView({
   const [selection, setSelection] = useState<CaptureSelection | null>(null);
   const [draftSelection, setDraftSelection] = useState<CaptureSelection | null>(null);
   const [result, setResult] = useState<OcrResult | null>(null);
+  const [savedImage, setSavedImage] = useState<ResourceImage | null>(null);
   const [savedTerms, setSavedTerms] = useState<ResourceTerm[]>([]);
   const [savedGrammar, setSavedGrammar] = useState<SavedGrammar[]>([]);
   const [selectedTerms, setSelectedTerms] = useState<Set<string>>(new Set());
@@ -103,10 +104,17 @@ export function CaptureView({
     clearNotices();
     try {
       const file = await captureToFile(image, selection);
-      const nextResult = selectedResourceId
-        ? (await api.ocrResourceImage(selectedResourceId, file, false)).ocr
-        : await api.ocrImage(file);
+      let nextResult: OcrResult;
+      let nextImage: ResourceImage | null = null;
+      if (selectedResourceId) {
+        const response = await api.ocrResourceImage(selectedResourceId, file, false);
+        nextResult = response.ocr;
+        nextImage = response.image;
+      } else {
+        nextResult = await api.ocrImage(file);
+      }
       setResult(nextResult);
+      setSavedImage(nextImage);
       setSavedTerms([]);
       setSavedGrammar([]);
       setSelectedTerms(new Set((nextResult.terms ?? []).map(termKey)));
@@ -115,11 +123,12 @@ export function CaptureView({
           .filter((match) => match.confidence >= STRONG_GRAMMAR_CONFIDENCE)
           .map((match) => match.matchId)
       ));
-      setMessage(nextResult.rawText.trim()
+      const savedNotice = nextImage ? `Image saved to ${selectedResource?.name ?? "this resource"}. ` : "";
+      setMessage(`${savedNotice}${nextResult.rawText.trim()
         ? selectedResourceId && ((nextResult.terms?.length ?? 0) + (nextResult.grammarMatches?.length ?? 0) > 0)
-          ? "Text found. Review the vocabulary and grammar before saving."
+          ? "Review the vocabulary and grammar below."
           : "Text found."
-        : "No Japanese text was found in this area.");
+        : "No Japanese text was found in this area."}`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not read this image");
     } finally {
@@ -168,6 +177,7 @@ export function CaptureView({
     setSelection(null);
     setDraftSelection(null);
     setResult(null);
+    setSavedImage(null);
     setSavedTerms([]);
     setSavedGrammar([]);
     setSelectedTerms(new Set());
@@ -289,7 +299,7 @@ export function CaptureView({
               <div className="capture-source"><Monitor size={18} /><div><strong>{image.sourceName}</strong><span>{image.width} x {image.height}</span></div></div>
               <p>Drag over the text you want. Leave the image unselected to read everything.</p>
               <label>
-                Save terms to
+                Save image to
                 <ResourcePicker value={selectedResourceId} allowNone onChange={(id, resource) => {
                   setSelectedResourceId(id);
                   if (resource) setResources((current) => [...new Map([...current, resource].map((item) => [item.id, item])).values()]);
@@ -297,7 +307,7 @@ export function CaptureView({
               </label>
               <div className="capture-editor-actions">
                 <button className="primary-button" type="button" disabled={busy} onClick={() => void readImage()}>
-                  <ScanText size={18} /> {busy ? "Reading..." : selection ? "Read selected area" : "Read full image"}
+                  <ScanText size={18} /> {captureActionLabel(busy, Boolean(selection), Boolean(selectedResourceId))}
                 </button>
                 {selection && <button className="secondary-button" type="button" onClick={() => setSelection(null)}><Crop size={17} /> Clear selection</button>}
                 {bridge && <button className="secondary-button" type="button" disabled={capturing} onClick={() => void captureScreen()}><RotateCcw size={17} /> Retake</button>}
@@ -316,7 +326,7 @@ export function CaptureView({
       <section className="panel capture-results">
         <div className="panel-heading">
           <h2>Recognized text</h2>
-          {result && <span>{suggestions.length} terms · {grammarMatches.length} grammar</span>}
+          {result && <span>{savedImage ? "Image saved | " : ""}{suggestions.length} terms | {grammarMatches.length} grammar</span>}
         </div>
         {!result ? (
           <EmptyState title="No image read yet" detail="Capture or choose an image, select the text, and run recognition." />
@@ -437,6 +447,12 @@ function GrammarMatchRow({
 
 function termKey(term: SuggestedTerm) {
   return `${term.termType}:${term.text}`;
+}
+
+function captureActionLabel(busy: boolean, selected: boolean, savingImage: boolean) {
+  if (busy) return savingImage ? "Saving and reading..." : "Reading...";
+  if (savingImage) return selected ? "Save and read selection" : "Save and read image";
+  return selected ? "Read selected area" : "Read full image";
 }
 
 function selectionStyle(selection: CaptureSelection) {

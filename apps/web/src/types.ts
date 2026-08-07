@@ -82,18 +82,7 @@ export type ResourceDetail = {
     updated_at: string;
   }>;
   terms: ResourceTerm[];
-  images: Array<{
-    id: number;
-    resourceId: number | null;
-    filePath: string;
-    originalName: string | null;
-    mimeType: string | null;
-    sizeBytes: number | null;
-    ocrText: string | null;
-    ocrElements: unknown[];
-    createdAt: string;
-    updatedAt: string;
-  }>;
+  images: ResourceImageSummary[];
 };
 
 export type Kanji = {
@@ -128,6 +117,36 @@ export type SentenceExample = {
   terms: string[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type DetectedTerm = Omit<ResourceTerm, "id" | "resourceId" | "createdAt" | "updatedAt">;
+
+export type ResourceImageSummary = {
+  id: number;
+  resourceId: number | null;
+  filePath: string;
+  imageUrl: string;
+  originalName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  ocrTextPreview: string;
+  termCount: number;
+  grammarCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ResourceImage = Omit<ResourceImageSummary, "ocrTextPreview" | "termCount" | "grammarCount"> & {
+  ocrText: string | null;
+  ocrElements: OcrElement[];
+};
+
+export type ResourceImageDetail = {
+  image: ResourceImage;
+  terms: DetectedTerm[];
+  grammarMatches: GrammarMatch[];
+  savedTerms: ResourceTerm[];
+  savedGrammar: SavedGrammar[];
 };
 
 export type GrammarMatch = {
@@ -321,24 +340,26 @@ export type RuntimeDoctor = {
   checks: RuntimeDoctorCheck[];
 };
 
+export type OcrElement = {
+  text: string;
+  element_type: string;
+  features: Record<string, unknown>;
+  bbox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    points?: Array<{ x: number; y: number }>;
+  };
+  confidence?: number;
+  detection_index?: number;
+  bbox_source?: string;
+};
+
 export type OcrResult = {
   rawText: string;
-  elements: Array<{
-    text: string;
-    element_type: string;
-    features: Record<string, unknown>;
-    bbox?: {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      points?: Array<{ x: number; y: number }>;
-    };
-    confidence?: number;
-    detection_index?: number;
-    bbox_source?: string;
-  }>;
-  terms?: Array<Omit<ResourceTerm, "id" | "resourceId" | "createdAt" | "updatedAt">>;
+  elements: OcrElement[];
+  terms?: DetectedTerm[];
   grammarMatches?: GrammarMatch[];
   backend?: string;
   activeBackend?: string;
