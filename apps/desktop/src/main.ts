@@ -6,14 +6,24 @@ import { resolveDesktopRuntimePaths } from "./runtimePaths.js";
 import { captureCurrentDisplay, type DesktopCaptureResult } from "./screenCapture.js";
 import { createServiceDefinitions } from "./serviceDefinitions.js";
 import { ServiceSupervisor, type ManagedServiceState } from "./serviceSupervisor.js";
+import { resolveUserDataPath } from "./userDataPath.js";
 
 type RunningBackend = {
   url: string;
   close: () => Promise<void>;
 };
 
-if (process.env.YOMUNAMI_USER_DATA_DIR) {
-  app.setPath("userData", path.resolve(process.env.YOMUNAMI_USER_DATA_DIR));
+const explicitUserDataPath = process.env.KAKOMU_USER_DATA_DIR ?? process.env.YOMUNAMI_USER_DATA_DIR;
+if (explicitUserDataPath || app.isPackaged) {
+  const userData = resolveUserDataPath({
+    currentPath: app.getPath("userData"),
+    explicitPath: explicitUserDataPath,
+    legacyProductName: "Yomunami"
+  });
+  app.setPath("userData", userData.path);
+  if (userData.source === "legacy-fallback") {
+    console.warn("Kakomu could not move the legacy user data directory and will use it in place.");
+  }
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
