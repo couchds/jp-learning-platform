@@ -6,11 +6,13 @@ This project follows semantic versioning.
 
 ## Unreleased
 
+- Rename the product from Yomunami to Kakomu across the app, installers, managed workers, protocols, documentation, and CI artifacts.
+- Migrate existing Yomunami desktop data on first launch while retaining compatibility aliases for released integrations.
 - Move screen capture, cropping, OCR review, and selective term saving into the Electron client.
 - Route the global capture shortcut into the main Capture page.
 - Remove the Python/Tk overlay worker and browser-callable service launch routes.
 - Package only the OCR and handwriting recognition sidecars.
-- Keep Yomunami, its global capture shortcut, and managed OCR workers available from the system tray after the main window is closed.
+- Keep Kakomu, its global capture shortcut, and managed OCR workers available from the system tray after the main window is closed.
 
 ## 0.7.0 - 2026-08-06
 

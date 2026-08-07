@@ -237,7 +237,7 @@ export function CaptureView({
               <div>
                 <span className="eyebrow">Desktop</span>
                 <h2>Capture from your screen</h2>
-                <p>Yomunami will return here so you can crop and review the result.</p>
+                <p>Kakomu will return here so you can crop and review the result.</p>
               </div>
               <button className="primary-button capture-button" type="button" disabled={capturing} onClick={() => void captureScreen()}>
                 <Crosshair size={18} /> {capturing ? "Capturing..." : "Capture screen"}

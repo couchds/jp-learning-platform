@@ -8,7 +8,7 @@ Accepted. Supersedes the UI and service-launch decisions in 0005, 0006, 0008, 00
 
 ## Context
 
-The Python/Tk overlay duplicated the product UI, required a third managed worker, opened a separate review window, and made screen permissions attach to a companion process. Yomunami now has a packaged Electron client capable of owning native capture directly.
+The Python/Tk overlay duplicated the product UI, required a third managed worker, opened a separate review window, and made screen permissions attach to a companion process. Kakomu now has a packaged Electron client capable of owning native capture directly.
 
 ## Decision
 
@@ -21,7 +21,7 @@ The Python/Tk overlay duplicated the product UI, required a third managed worker
 
 ## Consequences
 
-- Yomunami presents one learner-facing UI instead of a main app plus an overlay control panel.
-- Screen Recording permission belongs to Yomunami on macOS.
+- Kakomu presents one learner-facing UI instead of a main app plus an overlay control panel.
+- Screen Recording permission belongs to Kakomu on macOS.
 - Desktop installers are smaller and no longer package Tk, MSS, pynput, or overlay-specific dependencies.
 - Screen capture remains desktop-only while image upload OCR remains available in the web client.

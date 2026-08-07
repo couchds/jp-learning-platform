@@ -133,7 +133,7 @@ export function App() {
       <aside className="sidebar" aria-label="Primary navigation">
         <div className="brand">
           <div className="brand-mark">{"\u65e5"}</div>
-          <div><strong>Yomunami</strong><span>Japanese learning</span></div>
+          <div><strong>Kakomu</strong><span>Japanese learning</span></div>
         </div>
         <nav className="nav-list" aria-label="Main sections">
           {navItems.map((item) => {

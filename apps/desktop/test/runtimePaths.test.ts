@@ -6,12 +6,12 @@ describe("resolveDesktopRuntimePaths", () => {
   it("keeps user data outside application resources", () => {
     const result = resolveDesktopRuntimePaths({
       appPath: path.join("repo", "apps", "desktop"),
-      userDataPath: path.join("home", "Yomunami"),
+      userDataPath: path.join("home", "Kakomu"),
       resourcesPath: path.join("installed", "resources"),
       isPackaged: true
     });
     expect(result.resourceRoot).toBe(path.normalize(path.join("installed", "resources")));
-    expect(result.databasePath).toBe(path.normalize(path.join("home", "Yomunami", "data", "app.sqlite")));
+    expect(result.databasePath).toBe(path.normalize(path.join("home", "Kakomu", "data", "app.sqlite")));
     expect(result.uploadDir.startsWith(result.resourceRoot)).toBe(false);
   });
 
@@ -19,7 +19,7 @@ describe("resolveDesktopRuntimePaths", () => {
     const appPath = path.resolve("repo", "apps", "desktop");
     const result = resolveDesktopRuntimePaths({
       appPath,
-      userDataPath: path.resolve("tmp", "Yomunami"),
+      userDataPath: path.resolve("tmp", "Kakomu"),
       resourcesPath: path.resolve("installed", "resources"),
       isPackaged: false
     });

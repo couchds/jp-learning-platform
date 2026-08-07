@@ -1,14 +1,14 @@
-# Yomunami
+# Kakomu
 
-Yomunami is a local-first Japanese learning app for collecting words and kanji from games, manga, videos, books, and websites. It combines screen capture, OCR, a study library, dictionary lookup, handwriting recognition, quizzes, and spaced review.
+Kakomu is a local-first Japanese learning app for collecting words, kanji, and grammar from games, manga, videos, books, and websites. It combines screen capture, OCR, grammar detection, a study library, dictionary lookup, handwriting recognition, quizzes, and spaced review.
 
 ## Apps
 
 - **Desktop app:** the primary experience. It starts its private API and managed OCR and handwriting workers automatically. Screen capture is built into Electron.
-- **Web app:** a client for an already-running Yomunami backend. It never starts or stops local services.
+- **Web app:** a client for an already-running Kakomu backend. It never starts or stops local services.
 - **Local API:** the shared backend used by both apps, with SQLite and local file storage.
 
-Desktop data is stored under the operating system's Yomunami user-data directory. Web development defaults to `data/local/app.sqlite` and `uploads/`. Databases, uploads, models, `.env` files, and service credentials are ignored by git.
+Desktop data is stored under the operating system's Kakomu user-data directory. On first launch after upgrading, Kakomu moves an existing Yomunami profile into that directory without replacing any existing Kakomu profile. Web development defaults to `data/local/app.sqlite` and `uploads/`. Databases, uploads, models, `.env` files, and service credentials are ignored by git.
 
 ## Requirements
 
@@ -41,7 +41,7 @@ Start the complete desktop app:
 npm run dev:desktop
 ```
 
-The desktop main process chooses a private API port, stores data outside the repository, supervises available workers, and owns native screen capture. Press `Ctrl/Cmd+Shift+O` from any application to capture the display under the pointer. Closing the window keeps Yomunami and OCR available in the system tray; use the tray's Quit command to stop the app and its services. Captures return to the main window for cropping, OCR review, and selective term saving.
+The desktop main process chooses a private API port, stores data outside the repository, supervises available workers, and owns native screen capture. Press `Ctrl/Cmd+Shift+O` from any application to capture the display under the pointer. Closing the window keeps Kakomu and OCR available in the system tray; use the tray's Quit command to stop the app and its services. Captures return to the main window for cropping, OCR and grammar review, and selective term saving.
 
 ## Web Development
 
@@ -90,7 +90,7 @@ tests/             Python source and packaging tests
 
 ## Data Sources
 
-Yomunami supports local KANJIDIC2, JMdict, sentence-example, and derived kanji-graph imports. Imports can be started from **Settings > Dictionary data** or with the scripts in `scripts/`.
+Kakomu supports local KANJIDIC2, JMdict, sentence-example, and derived kanji-graph imports. Imports can be started from **Settings > Dictionary data** or with the scripts in `scripts/`.
 
 Downloaded datasets remain local and should not be committed.
 

@@ -9,5 +9,5 @@ test("runtime doctor attributes screen capture to Electron", () => {
 
   const macos = screenPermissionCheck("darwin");
   assert.equal(macos.status, "warn");
-  assert.match(macos.action ?? "", /Yomunami/);
+  assert.match(macos.action ?? "", /Kakomu/);
 });

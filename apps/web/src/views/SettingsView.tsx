@@ -86,7 +86,7 @@ export function SettingsView() {
         ) : (
           <div className="app-health ready">
             <CheckCircle2 size={22} />
-            <div><strong>Connected to Yomunami</strong><span>App services are managed outside this browser.</span></div>
+            <div><strong>Connected to Kakomu</strong><span>App services are managed outside this browser.</span></div>
           </div>
         )}
       </section>

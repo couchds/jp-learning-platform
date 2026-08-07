@@ -46,7 +46,7 @@ function packagedDefinitions(options: DefinitionOptions, platform: NodeJS.Platfo
     {
       id: "ocr",
       label: "Text recognition",
-      command: path.join(sidecarRoot, `yomunami-ocr${executableSuffix}`),
+      command: path.join(sidecarRoot, `kakomu-ocr${executableSuffix}`),
       healthUrl: "http://127.0.0.1:5100/health",
       env: { OCR_HOST: "127.0.0.1", OCR_PORT: "5100", OCR_BACKEND: "auto" },
       startOnLaunch: true,
@@ -56,7 +56,7 @@ function packagedDefinitions(options: DefinitionOptions, platform: NodeJS.Platfo
     {
       id: "recognition",
       label: "Handwriting recognition",
-      command: path.join(sidecarRoot, `yomunami-recognize${executableSuffix}`),
+      command: path.join(sidecarRoot, `kakomu-recognize${executableSuffix}`),
       healthUrl: "http://127.0.0.1:5000/health",
       env: { RECOGNITION_SERVICE_HOST: "127.0.0.1", RECOGNITION_SERVICE_PORT: "5000" },
       startOnLaunch: true,

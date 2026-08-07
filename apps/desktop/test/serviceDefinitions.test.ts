@@ -20,7 +20,7 @@ describe("createServiceDefinitions", () => {
   });
 
   it("prefers a service virtual environment during development", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "yomunami-services-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "kakomu-services-"));
     roots.push(root);
     const serviceRoot = path.join(root, "services", "recognize");
     const pythonPath = path.join(serviceRoot, ".venv", "Scripts", "python.exe");

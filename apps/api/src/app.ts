@@ -39,7 +39,8 @@ export function createApp() {
   app.use(express.json({ limit: "2mb" }));
 
   app.use("/api", (req, res, next) => {
-    if (!config.desktopAuthToken || req.get("x-yomunami-token") === config.desktopAuthToken) {
+    const authToken = req.get("x-kakomu-token") ?? req.get("x-yomunami-token");
+    if (!config.desktopAuthToken || authToken === config.desktopAuthToken) {
       next();
       return;
     }

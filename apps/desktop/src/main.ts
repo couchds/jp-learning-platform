@@ -42,6 +42,7 @@ const runtimePaths = resolveDesktopRuntimePaths({
   isPackaged: app.isPackaged
 });
 
+app.setAsDefaultProtocolClient("kakomu");
 app.setAsDefaultProtocolClient("yomunami");
 app.on("second-instance", () => showMainWindow());
 app.on("open-url", (event) => {
@@ -51,7 +52,7 @@ app.on("open-url", (event) => {
 
 void app.whenReady().then(boot).catch((error) => {
   const detail = error instanceof Error ? error.stack ?? error.message : String(error);
-  dialog.showErrorBox("Yomunami could not start", detail);
+  dialog.showErrorBox("Kakomu could not start", detail);
   app.quit();
 });
 
@@ -92,12 +93,13 @@ async function boot() {
   registerCaptureShortcut();
   createTray();
   await createMainWindow();
-  if (process.env.YOMUNAMI_SKIP_SERVICES !== "1") void supervisor.startOnLaunch();
+  const skipServices = process.env.KAKOMU_SKIP_SERVICES ?? process.env.YOMUNAMI_SKIP_SERVICES;
+  if (skipServices !== "1") void supervisor.startOnLaunch();
 }
 
 function configureBackendEnvironment() {
-  process.env.YOMUNAMI_RESOURCE_ROOT = runtimePaths.resourceRoot;
-  process.env.YOMUNAMI_DATA_ROOT = runtimePaths.dataRoot;
+  process.env.KAKOMU_RESOURCE_ROOT = runtimePaths.resourceRoot;
+  process.env.KAKOMU_DATA_ROOT = runtimePaths.dataRoot;
   process.env.DATABASE_PATH = runtimePaths.databasePath;
   process.env.IMPORT_DIR = runtimePaths.importDir;
   process.env.UPLOAD_DIR = runtimePaths.uploadDir;
@@ -110,7 +112,7 @@ function configureBackendEnvironment() {
     "http://localhost:5173"
   ].join(",");
   process.env.API_REQUEST_LOGGING = "false";
-  process.env.YOMUNAMI_DESKTOP_AUTH_TOKEN = apiToken;
+  process.env.KAKOMU_DESKTOP_AUTH_TOKEN = apiToken;
 }
 
 async function createMainWindow() {
@@ -121,7 +123,7 @@ async function createMainWindow() {
     minHeight: 640,
     show: false,
     backgroundColor: "#f4f7f5",
-    title: "Yomunami",
+    title: "Kakomu",
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.cjs"),
       contextIsolation: true,
@@ -190,9 +192,9 @@ function createTray() {
   }
 
   tray = new Tray(icon.resize({ width: 20, height: 20 }));
-  tray.setToolTip("Yomunami");
+  tray.setToolTip("Kakomu");
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "Open Yomunami", click: showMainWindow },
+    { label: "Open Kakomu", click: showMainWindow },
     { label: "Capture screen", click: () => void captureFromShortcut() },
     { type: "separator" },
     { label: "Quit", click: () => app.quit() }
@@ -210,7 +212,8 @@ async function captureFromShortcut() {
 
 async function requestCapture(): Promise<DesktopCaptureResult> {
   mainWindow?.hide();
-  await new Promise((resolve) => setTimeout(resolve, process.env.YOMUNAMI_TEST_CAPTURE_DATA_URL ? 0 : 180));
+  const testCapture = process.env.KAKOMU_TEST_CAPTURE_DATA_URL ?? process.env.YOMUNAMI_TEST_CAPTURE_DATA_URL;
+  await new Promise((resolve) => setTimeout(resolve, testCapture ? 0 : 180));
   const result = await captureCurrentDisplay();
   showMainWindow();
   return result;

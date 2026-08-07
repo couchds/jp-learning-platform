@@ -31,7 +31,7 @@ export type DesktopCaptureResult = {
   error?: string;
 };
 
-export type YomunamiDesktopBridge = {
+export type KakomuDesktopBridge = {
   getRuntime(): Promise<DesktopRuntime>;
   getServices(): Promise<DesktopService[]>;
   restartServices(): Promise<DesktopService[]>;
@@ -43,21 +43,24 @@ export type YomunamiDesktopBridge = {
 
 declare global {
   interface Window {
-    yomunamiDesktop?: YomunamiDesktopBridge;
+    kakomuDesktop?: KakomuDesktopBridge;
+    yomunamiDesktop?: KakomuDesktopBridge;
   }
 }
+
+export type YomunamiDesktopBridge = KakomuDesktopBridge;
 
 let runtimePromise: Promise<DesktopRuntime | null> | undefined;
 
 export function getDesktopBridge() {
-  return window.yomunamiDesktop ?? null;
+  return window.kakomuDesktop ?? window.yomunamiDesktop ?? null;
 }
 
 export function getDesktopRuntime() {
-  runtimePromise ??= window.yomunamiDesktop?.getRuntime() ?? Promise.resolve(null);
+  runtimePromise ??= getDesktopBridge()?.getRuntime() ?? Promise.resolve(null);
   return runtimePromise;
 }
 
 export function isDesktopApp() {
-  return Boolean(window.yomunamiDesktop);
+  return Boolean(getDesktopBridge());
 }

@@ -1,5 +1,6 @@
+# Keep the released app ID stable so Kakomu upgrades existing Yomunami installations.
 appId: com.yomunami.desktop
-productName: Yomunami
+productName: Kakomu
 directories:
   output: release
   buildResources: resources
@@ -25,21 +26,24 @@ electronFuses:
   enableEmbeddedAsarIntegrityValidation: true
   onlyLoadAppFromAsar: true
 protocols:
-  - name: Yomunami
+  - name: Kakomu
+    schemes:
+      - kakomu
+  - name: Yomunami (legacy)
     schemes:
       - yomunami
 win:
   target:
     - nsis
-  executableName: Yomunami
+  executableName: Kakomu
 mac:
   target:
     - dmg
     - zip
   category: public.app-category.education
 linux:
-  executableName: yomunami
-  maintainer: Yomunami
+  executableName: kakomu
+  maintainer: Kakomu
   syncDesktopName: true
   target:
     - AppImage

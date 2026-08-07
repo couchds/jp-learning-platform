@@ -119,7 +119,7 @@ export function screenPermissionCheck(platform: NodeJS.Platform = process.platfo
       label: "Screen capture permissions",
       status: "ok",
       detail: platform === "win32"
-        ? "Screen capture is provided by the Yomunami desktop app."
+        ? "Screen capture is provided by the Kakomu desktop app."
         : "Screen capture permission is managed by the desktop session."
     };
   }
@@ -128,8 +128,8 @@ export function screenPermissionCheck(platform: NodeJS.Platform = process.platfo
     id: "screen-permissions",
     label: "macOS screen permissions",
     status: "warn",
-    detail: "macOS may require Screen Recording permission for Yomunami.",
-    action: "Open System Settings > Privacy & Security > Screen Recording and allow Yomunami."
+    detail: "macOS may require Screen Recording permission for Kakomu.",
+    action: "Open System Settings > Privacy & Security > Screen Recording and allow Kakomu."
   };
 }
 

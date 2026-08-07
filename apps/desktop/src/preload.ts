@@ -28,4 +28,5 @@ const desktopApi = Object.freeze({
   }
 });
 
+contextBridge.exposeInMainWorld("kakomuDesktop", desktopApi);
 contextBridge.exposeInMainWorld("yomunamiDesktop", desktopApi);

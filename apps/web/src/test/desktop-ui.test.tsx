@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DesktopService, YomunamiDesktopBridge } from "../desktop";
+import type { DesktopService, KakomuDesktopBridge } from "../desktop";
 import { SettingsView } from "../views/SettingsView";
 
 vi.mock("../components/BackupPanel", () => ({
@@ -8,6 +8,7 @@ vi.mock("../components/BackupPanel", () => ({
 }));
 
 afterEach(() => {
+  delete window.kakomuDesktop;
   delete window.yomunamiDesktop;
 });
 
@@ -25,20 +26,20 @@ describe("desktop-aware settings", () => {
     ];
     const recovered = initial.map((service) => ({ ...service, status: "running" as const, detail: "Ready", managed: true }));
     const restartServices = vi.fn().mockResolvedValue(recovered);
-    window.yomunamiDesktop = createBridge(initial, restartServices);
+    window.kakomuDesktop = createBridge(initial, restartServices);
 
     render(<SettingsView />);
     expect(await screen.findByText("Some features need attention")).toBeInTheDocument();
-    expect(screen.getByText("Version 0.7.0")).toBeInTheDocument();
+    expect(screen.getByText("Version 0.8.0")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Restart app services"));
     expect(await screen.findByText("Everything is ready")).toBeInTheDocument();
     expect(restartServices).toHaveBeenCalledOnce();
   });
 });
 
-function createBridge(services: DesktopService[], restartServices: YomunamiDesktopBridge["restartServices"]): YomunamiDesktopBridge {
+function createBridge(services: DesktopService[], restartServices: KakomuDesktopBridge["restartServices"]): KakomuDesktopBridge {
   return {
-    getRuntime: async () => ({ apiUrl: "http://127.0.0.1:4000", apiToken: "token", version: "0.7.0", platform: "win32", isDesktop: true }),
+    getRuntime: async () => ({ apiUrl: "http://127.0.0.1:4000", apiToken: "token", version: "0.8.0", platform: "win32", isDesktop: true }),
     getServices: async () => services,
     restartServices,
     capture: async () => ({ ok: true }),

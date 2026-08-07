@@ -33,7 +33,7 @@ let ocrServer: Server;
 let ocrServiceUrl: string;
 
 test.beforeEach(async () => {
-  userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "yomunami-e2e-"));
+  userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "kakomu-e2e-"));
   ocrServer = createServer((request, response) => {
     response.setHeader("content-type", "application/json");
     if (request.url === "/health") {
@@ -69,9 +69,9 @@ test.beforeEach(async () => {
     cwd: desktopDir,
     env: {
       ...process.env,
-      YOMUNAMI_SKIP_SERVICES: "1",
-      YOMUNAMI_TEST_CAPTURE_DATA_URL: testCapture,
-      YOMUNAMI_USER_DATA_DIR: userDataDir,
+      KAKOMU_SKIP_SERVICES: "1",
+      KAKOMU_TEST_CAPTURE_DATA_URL: testCapture,
+      KAKOMU_USER_DATA_DIR: userDataDir,
       OCR_SERVICE_URL: ocrServiceUrl,
       ELECTRON_DISABLE_SECURITY_WARNINGS: "true"
     }
@@ -89,13 +89,13 @@ test.afterEach(async () => {
 });
 
 test("boots the embedded backend through the isolated preload bridge", async () => {
-  const runtime = await page.evaluate(() => window.yomunamiDesktop?.getRuntime());
-  expect(runtime).toMatchObject({ isDesktop: true, version: "0.7.0" });
+  const runtime = await page.evaluate(() => window.kakomuDesktop?.getRuntime());
+  expect(runtime).toMatchObject({ isDesktop: true, version: "0.8.0" });
   expect(runtime?.apiUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
   expect(runtime?.apiToken).toHaveLength(64);
 
   const health = await page.evaluate(async () => {
-    const current = await window.yomunamiDesktop!.getRuntime();
+    const current = await window.kakomuDesktop!.getRuntime();
     const response = await fetch(`${current.apiUrl}/health`);
     return { status: response.status, body: await response.json() };
   });
@@ -110,9 +110,9 @@ test("exits a duplicate desktop instance before it can boot", async () => {
     stdio: "ignore",
     env: {
       ...process.env,
-      YOMUNAMI_SKIP_SERVICES: "1",
-      YOMUNAMI_TEST_CAPTURE_DATA_URL: testCapture,
-      YOMUNAMI_USER_DATA_DIR: userDataDir,
+      KAKOMU_SKIP_SERVICES: "1",
+      KAKOMU_TEST_CAPTURE_DATA_URL: testCapture,
+      KAKOMU_USER_DATA_DIR: userDataDir,
       OCR_SERVICE_URL: ocrServiceUrl,
       ELECTRON_DISABLE_SECURITY_WARNINGS: "true"
     }
@@ -120,7 +120,7 @@ test("exits a duplicate desktop instance before it can boot", async () => {
   await new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(() => {
       duplicate.kill();
-      reject(new Error("Duplicate Yomunami instance did not exit"));
+      reject(new Error("Duplicate Kakomu instance did not exit"));
     }, 10_000);
     duplicate.once("error", reject);
     duplicate.once("exit", () => {
@@ -133,6 +133,7 @@ test("exits a duplicate desktop instance before it can boot", async () => {
 });
 
 test("navigates packaged file routes and exposes desktop-owned controls", async () => {
+  await expect(page.getByText("Kakomu", { exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Main sections" }).getByRole("link")).toHaveCount(6);
   await page.getByRole("link", { name: "Capture" }).click();
   await expect(page).toHaveURL(/#\/capture$/);
@@ -206,7 +207,7 @@ test("keeps OCR available in the background after the window is closed", async (
   await expect.poll(() => browserWindow.evaluate((window) => window.isVisible())).toBe(false);
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
 
-  const result = await page.evaluate(() => window.yomunamiDesktop!.capture());
+  const result = await page.evaluate(() => window.kakomuDesktop!.capture());
   expect(result.ok).toBe(true);
   await expect.poll(() => browserWindow.evaluate((window) => window.isVisible())).toBe(true);
 });

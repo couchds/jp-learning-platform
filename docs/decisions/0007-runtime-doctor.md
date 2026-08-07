@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Yomunami depends on several local pieces that can fail independently: the TypeScript API, SQLite and upload paths, Python overlay dependencies, platform screen-capture permissions, OCR, handwriting recognition, and speech services. A local-first product should make those failures visible in the app instead of relying on terminal inspection.
+Kakomu depends on several local pieces that can fail independently: the TypeScript API, SQLite and upload paths, Python overlay dependencies, platform screen-capture permissions, OCR, handwriting recognition, and speech services. A local-first product should make those failures visible in the app instead of relying on terminal inspection.
 
 ## Decision
 

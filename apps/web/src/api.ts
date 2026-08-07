@@ -54,7 +54,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const runtime = await getDesktopRuntime();
   const headers = new Headers(init?.headers);
   if (!(init?.body instanceof FormData)) headers.set("content-type", "application/json");
-  if (runtime?.apiToken) headers.set("x-yomunami-token", runtime.apiToken);
+  if (runtime?.apiToken) headers.set("x-kakomu-token", runtime.apiToken);
   const response = await fetch(`${runtime?.apiUrl ?? WEB_API_URL}${path}`, {
     ...init,
     headers

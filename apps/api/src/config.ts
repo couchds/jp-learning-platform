@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 
 const apiDir = path.dirname(fileURLToPath(import.meta.url));
 const sourceRepoRoot = path.resolve(apiDir, "../../..");
-const resourceRoot = path.resolve(process.env.YOMUNAMI_RESOURCE_ROOT ?? sourceRepoRoot);
-const dataRoot = path.resolve(process.env.YOMUNAMI_DATA_ROOT ?? path.join(resourceRoot, "data/local"));
+const resourceRoot = path.resolve(process.env.KAKOMU_RESOURCE_ROOT ?? process.env.YOMUNAMI_RESOURCE_ROOT ?? sourceRepoRoot);
+const dataRoot = path.resolve(process.env.KAKOMU_DATA_ROOT ?? process.env.YOMUNAMI_DATA_ROOT ?? path.join(resourceRoot, "data/local"));
 
 function boolFromEnv(value: string | undefined, fallback: boolean): boolean {
   if (value == null || value.trim() === "") {
@@ -31,7 +31,7 @@ function numberFromEnv(value: string | undefined, fallback: number): number {
 }
 
 export const config = {
-  productVersion: "0.7.0",
+  productVersion: "0.8.0",
   env: process.env.NODE_ENV ?? "development",
   repoRoot: resourceRoot,
   resourceRoot,
@@ -43,7 +43,7 @@ export const config = {
   databasePath: process.env.DATABASE_PATH ?? path.join(dataRoot, "app.sqlite"),
   uploadDir: process.env.UPLOAD_DIR ?? path.join(resourceRoot, "uploads"),
   backupDir: process.env.BACKUP_DIR ?? path.join(dataRoot, "backups"),
-  desktopAuthToken: process.env.YOMUNAMI_DESKTOP_AUTH_TOKEN?.trim() || null,
+  desktopAuthToken: (process.env.KAKOMU_DESKTOP_AUTH_TOKEN ?? process.env.YOMUNAMI_DESKTOP_AUTH_TOKEN)?.trim() || null,
   allowedOrigins: listFromEnv(process.env.API_ALLOWED_ORIGINS, [
     "http://127.0.0.1:5173",
     "http://localhost:5173",

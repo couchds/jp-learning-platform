@@ -94,8 +94,8 @@ jobs:
       - name: Upload Windows installer
         uses: actions/upload-artifact@v7
         with:
-          name: yomunami-windows-${{ github.sha }}
-          path: apps/desktop/release/Yomunami-*-win-x64.exe
+          name: kakomu-windows-${{ github.sha }}
+          path: apps/desktop/release/Kakomu-*-win-x64.exe
           if-no-files-found: error
           compression-level: 0
           retention-days: 30

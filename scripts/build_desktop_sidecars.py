@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build platform-native Python workers for the Yomunami desktop app."""
+"""Build platform-native Python workers for the Kakomu desktop app."""
 
 from __future__ import annotations
 
@@ -37,14 +37,14 @@ class SidecarSpec:
 SIDECARS = {
     "ocr": SidecarSpec(
         service_id="ocr",
-        executable_name="yomunami-ocr",
+        executable_name="kakomu-ocr",
         service_root=REPO_ROOT / "services" / "ocr",
         entrypoint="app.py",
         collect_all=("manga_ocr", "easyocr", "fugashi", "unidic_lite"),
     ),
     "recognition": SidecarSpec(
         service_id="recognition",
-        executable_name="yomunami-recognize",
+        executable_name="kakomu-recognize",
         service_root=REPO_ROOT / "services" / "recognize",
         entrypoint="app.py",
         collect_all=("kanjidraw",),

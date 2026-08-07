@@ -15,7 +15,7 @@ export type DesktopCaptureResult = {
 };
 
 export async function captureCurrentDisplay(): Promise<DesktopCaptureResult> {
-  const testCapture = process.env.YOMUNAMI_TEST_CAPTURE_DATA_URL;
+  const testCapture = process.env.KAKOMU_TEST_CAPTURE_DATA_URL ?? process.env.YOMUNAMI_TEST_CAPTURE_DATA_URL;
   if (testCapture) return captureFromTestImage(testCapture);
 
   try {
@@ -29,7 +29,7 @@ export async function captureCurrentDisplay(): Promise<DesktopCaptureResult> {
     if (!source || source.thumbnail.isEmpty()) {
       return {
         ok: false,
-        error: "Yomunami could not capture this display. Check the operating system's screen-recording permission."
+        error: "Kakomu could not capture this display. Check the operating system's screen-recording permission."
       };
     }
 

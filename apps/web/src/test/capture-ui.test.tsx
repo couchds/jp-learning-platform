@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
 import { captureToFile } from "../captureImage";
-import type { DesktopCapture, DesktopService, YomunamiDesktopBridge } from "../desktop";
+import type { DesktopCapture, DesktopService, KakomuDesktopBridge } from "../desktop";
 import { CaptureView } from "../views/CaptureView";
 
 vi.mock("../api", () => ({
@@ -47,12 +47,12 @@ const resource = {
 describe("integrated desktop OCR", () => {
   beforeEach(() => {
     vi.mocked(api.resources).mockResolvedValue({ items: [resource], page: { limit: 200, offset: 0, total: 1 } });
-    window.yomunamiDesktop = desktopBridge();
+    window.kakomuDesktop = desktopBridge();
   });
 
   afterEach(() => {
     cleanup();
-    delete window.yomunamiDesktop;
+    delete window.kakomuDesktop;
     vi.clearAllMocks();
   });
 
@@ -150,9 +150,9 @@ describe("integrated desktop OCR", () => {
   });
 });
 
-function desktopBridge(): YomunamiDesktopBridge {
+function desktopBridge(): KakomuDesktopBridge {
   return {
-    getRuntime: async () => ({ apiUrl: "http://127.0.0.1:4000", apiToken: "token", version: "0.7.0", platform: "win32", isDesktop: true }),
+    getRuntime: async () => ({ apiUrl: "http://127.0.0.1:4000", apiToken: "token", version: "0.8.0", platform: "win32", isDesktop: true }),
     getServices: async () => [] as DesktopService[],
     restartServices: async () => [],
     capture: async () => ({ ok: true, capture }),

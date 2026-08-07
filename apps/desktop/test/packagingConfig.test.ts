@@ -14,12 +14,20 @@ describe("desktop packaging identity", () => {
       scripts?: { make?: string };
     };
 
-    expect(config).toMatch(/linux:\s+[\s\S]*?executableName:\s+yomunami/);
-    expect(config).toMatch(/linux:\s+[\s\S]*?maintainer:\s+Yomunami/);
+    expect(config).toMatch(/linux:\s+[\s\S]*?executableName:\s+kakomu/);
+    expect(config).toMatch(/linux:\s+[\s\S]*?maintainer:\s+Kakomu/);
     expect(config).toMatch(/linux:\s+[\s\S]*?syncDesktopName:\s+true/);
-    expect(packageJson.desktopName).toBe("Yomunami");
+    expect(packageJson.desktopName).toBe("Kakomu");
     expect(packageJson.homepage).toBe("https://github.com/couchds/jp-learning-platform");
     expect(packageJson.scripts?.make).toContain("--publish never");
+  });
+
+  it("keeps the released app ID and legacy protocol for in-place upgrades", () => {
+    const config = fs.readFileSync(path.join(desktopRoot, "electron-builder.yml"), "utf8");
+
+    expect(config).toMatch(/appId:\s+com\.yomunami\.desktop/);
+    expect(config).toMatch(/schemes:\s+[\s\S]*?- kakomu/);
+    expect(config).toMatch(/schemes:\s+[\s\S]*?- yomunami/);
   });
 
   it("packages the application icon for the persistent system tray", () => {
