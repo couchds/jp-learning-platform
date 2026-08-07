@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, shell } from "electron";
 import { resolveDesktopRuntimePaths } from "./runtimePaths.js";
+import { captureCurrentDisplay, type DesktopCaptureResult } from "./screenCapture.js";
 import { createServiceDefinitions } from "./serviceDefinitions.js";
 import { ServiceSupervisor, type ManagedServiceState } from "./serviceSupervisor.js";
 
@@ -164,17 +165,23 @@ function requireTrustedSender<T extends unknown[], R>(handler: (...args: T) => R
 }
 
 function registerCaptureShortcut() {
-  const registered = globalShortcut.register("CommandOrControl+Shift+O", () => void requestCapture());
+  const registered = globalShortcut.register("CommandOrControl+Shift+O", () => void captureFromShortcut());
   if (!registered) void appendServiceLog("desktop", "stderr", "Could not register Ctrl/Cmd+Shift+O\n");
 }
 
-async function requestCapture() {
-  const overlay = await supervisor?.start("overlay");
-  if (!overlay || overlay.status !== "running") {
-    return { ok: false, error: overlay?.detail ?? "Screen capture is unavailable." };
+async function captureFromShortcut() {
+  const result = await requestCapture();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("desktop:capture-ready", result);
   }
-  await fs.writeFile(runtimePaths.commandFile, JSON.stringify({ command: "capture", requestedAt: Date.now() }));
-  return { ok: true };
+}
+
+async function requestCapture(): Promise<DesktopCaptureResult> {
+  mainWindow?.hide();
+  await new Promise((resolve) => setTimeout(resolve, process.env.YOMUNAMI_TEST_CAPTURE_DATA_URL ? 0 : 180));
+  const result = await captureCurrentDisplay();
+  showMainWindow();
+  return result;
 }
 
 function publishServiceStatus(states: ManagedServiceState[]) {

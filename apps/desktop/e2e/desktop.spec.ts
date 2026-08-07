@@ -6,6 +6,7 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 import type {} from "../../web/src/desktop.js";
 
 const desktopDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const testCapture = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
 let app: ElectronApplication;
 let page: Page;
@@ -19,6 +20,7 @@ test.beforeEach(async () => {
     env: {
       ...process.env,
       YOMUNAMI_SKIP_SERVICES: "1",
+      YOMUNAMI_TEST_CAPTURE_DATA_URL: testCapture,
       YOMUNAMI_USER_DATA_DIR: userDataDir,
       ELECTRON_DISABLE_SECURITY_WARNINGS: "true"
     }
@@ -52,6 +54,9 @@ test("navigates packaged file routes and exposes desktop-owned controls", async 
   await page.getByRole("link", { name: "Capture" }).click();
   await expect(page).toHaveURL(/#\/capture$/);
   await expect(page.getByRole("button", { name: "Capture screen" })).toBeVisible();
+  await page.getByRole("button", { name: "Capture screen" }).click();
+  await expect(page.getByRole("img", { name: "Screen capture preview" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Read full image" })).toBeVisible();
   await expect(page.getByText("Start OCR service")).toHaveCount(0);
 
   await page.getByRole("link", { name: "Settings" }).click();
@@ -59,6 +64,25 @@ test("navigates packaged file routes and exposes desktop-owned controls", async 
   await expect(page.getByRole("heading", { name: "Desktop app" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Restart app services" })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("settings.png"), fullPage: true });
+});
+
+test("routes global capture events into the in-app editor", async () => {
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send("desktop:capture-ready", {
+      ok: true,
+      capture: {
+        dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        width: 1,
+        height: 1,
+        displayId: "test-display",
+        sourceName: "Shortcut capture"
+      }
+    });
+  });
+
+  await expect(page).toHaveURL(/#\/capture$/);
+  await expect(page.getByText("Shortcut capture")).toBeVisible();
+  await expect(page.getByRole("img", { name: "Screen capture preview" })).toBeVisible();
 });
 
 test("keeps primary tasks usable in a narrow desktop window", async () => {

@@ -43,6 +43,7 @@ function createBridge(services: DesktopService[], restartServices: YomunamiDeskt
     restartServices,
     capture: async () => ({ ok: true }),
     openDataFolder: async () => undefined,
-    onServicesChanged: () => () => undefined
+    onServicesChanged: () => () => undefined,
+    onCaptureReady: () => () => undefined
   };
 }

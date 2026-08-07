@@ -168,6 +168,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify(term)
     }),
+  addResourceTerms: (
+    id: number,
+    terms: Array<{
+      termType: ResourceTerm["termType"];
+      text: string;
+      reading?: string | null;
+      meaning?: string | null;
+      source?: string;
+      sourceImageId?: number | null;
+      frequency?: number;
+      notes?: string | null;
+    }>
+  ) => request<{ terms: ResourceTerm[] }>(`/api/resources/${id}/terms/bulk`, {
+    method: "POST",
+    body: JSON.stringify({ terms })
+  }),
   addResourceWord: (id: number, wordId: number, payload: { frequency?: number; notes?: string | null } = {}) =>
     request<void>(`/api/resources/${id}/words/${wordId}`, {
       method: "POST",

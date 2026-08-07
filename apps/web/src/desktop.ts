@@ -17,13 +17,28 @@ export type DesktopRuntime = {
   isDesktop: true;
 };
 
+export type DesktopCapture = {
+  dataUrl: string;
+  width: number;
+  height: number;
+  displayId: string;
+  sourceName: string;
+};
+
+export type DesktopCaptureResult = {
+  ok: boolean;
+  capture?: DesktopCapture;
+  error?: string;
+};
+
 export type YomunamiDesktopBridge = {
   getRuntime(): Promise<DesktopRuntime>;
   getServices(): Promise<DesktopService[]>;
   restartServices(): Promise<DesktopService[]>;
-  capture(): Promise<{ ok: boolean; error?: string }>;
+  capture(): Promise<DesktopCaptureResult>;
   openDataFolder(): Promise<void>;
   onServicesChanged(listener: (states: DesktopService[]) => void): () => void;
+  onCaptureReady(listener: (result: DesktopCaptureResult) => void): () => void;
 };
 
 declare global {

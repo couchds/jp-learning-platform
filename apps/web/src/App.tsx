@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { BookOpen, Crosshair, Home, RotateCcw, Search, Settings } from "lucide-react";
 import { api } from "./api";
+import { getDesktopBridge, type DesktopCaptureResult } from "./desktop";
 import type { Dashboard } from "./types";
 import { CaptureView } from "./views/CaptureView";
 import { DashboardView } from "./views/DashboardView";
@@ -81,6 +82,7 @@ const viewSummaries: Record<View, string> = {
 export function App() {
   const [view, setView] = useState<View>(() => viewFromLocation());
   const [dashboard, setDashboard] = useState<Loadable<Dashboard>>({ data: null, loading: true, error: null });
+  const [desktopCapture, setDesktopCapture] = useState<DesktopCaptureResult | null>(null);
 
   async function refreshDashboard() {
     setDashboard((current) => ({ ...current, loading: true, error: null }));
@@ -115,6 +117,15 @@ export function App() {
     else window.history.pushState(null, "", route);
     setView(target);
   };
+
+  useEffect(() => {
+    const bridge = getDesktopBridge();
+    if (!bridge) return;
+    return bridge.onCaptureReady((result) => {
+      setDesktopCapture(result);
+      navigate("capture");
+    });
+  }, []);
 
   return (
     <div className="app-shell">
@@ -154,7 +165,7 @@ export function App() {
         {view === "dashboard" && <DashboardView state={dashboard} onRefresh={() => void refreshDashboard()} />}
         {view === "database" && <DatabaseView />}
         {view === "profile" && <ProfileView />}
-        {view === "capture" && <CaptureView onChange={() => void refreshDashboard()} />}
+        {view === "capture" && <CaptureView desktopCapture={desktopCapture} onChange={() => void refreshDashboard()} />}
         {view === "runtime" && <RuntimeView />}
         {view === "resources" && <ResourcesView onChange={() => void refreshDashboard()} />}
         {view === "tracker" && <TrackerView onChange={() => void refreshDashboard()} />}
