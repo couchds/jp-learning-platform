@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { createServer, type Server } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,9 +26,39 @@ const editorCapture = `data:image/svg+xml;base64,${Buffer.from(`
 let app: ElectronApplication;
 let page: Page;
 let userDataDir: string;
+let ocrServer: Server;
 
 test.beforeEach(async () => {
   userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "yomunami-e2e-"));
+  ocrServer = createServer((request, response) => {
+    response.setHeader("content-type", "application/json");
+    if (request.url === "/health") {
+      response.end(JSON.stringify({ status: "ok", service: "ocr", local_only: true }));
+      return;
+    }
+    if (request.method === "POST" && request.url === "/ocr") {
+      request.resume();
+      request.once("end", () => response.end(JSON.stringify({
+        success: true,
+        raw_text: "日本語",
+        elements: [],
+        backend: "test",
+        active_backend: "test",
+        boxes_available: false,
+        image_width: 1,
+        image_height: 1
+      })));
+      return;
+    }
+    response.statusCode = 404;
+    response.end(JSON.stringify({ error: "Not found" }));
+  });
+  await new Promise<void>((resolve, reject) => {
+    ocrServer.once("error", reject);
+    ocrServer.listen(0, "127.0.0.1", resolve);
+  });
+  const ocrAddress = ocrServer.address();
+  if (!ocrAddress || typeof ocrAddress === "string") throw new Error("Could not start the test OCR server");
   app = await electron.launch({
     args: [desktopDir],
     cwd: desktopDir,
@@ -36,6 +67,7 @@ test.beforeEach(async () => {
       YOMUNAMI_SKIP_SERVICES: "1",
       YOMUNAMI_TEST_CAPTURE_DATA_URL: testCapture,
       YOMUNAMI_USER_DATA_DIR: userDataDir,
+      OCR_SERVICE_URL: `http://127.0.0.1:${ocrAddress.port}`,
       ELECTRON_DISABLE_SECURITY_WARNINGS: "true"
     }
   });
@@ -45,6 +77,9 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   await app?.close();
+  await new Promise<void>((resolve, reject) => {
+    ocrServer.close((error) => error ? reject(error) : resolve());
+  });
   await fs.rm(userDataDir, { recursive: true, force: true });
 });
 
@@ -117,6 +152,15 @@ test("routes global capture events into the in-app editor", async () => {
   await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThanOrEqual(390);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("capture-editor-narrow.png"), fullPage: true });
+});
+
+test("sends a desktop capture through the private API to OCR", async () => {
+  await page.getByRole("link", { name: "Capture" }).click();
+  await page.getByRole("button", { name: "Capture screen" }).click();
+  await page.getByRole("button", { name: "Read full image" }).click();
+
+  await expect(page.locator(".ocr-text")).toHaveText("日本語");
+  await expect(page.getByText("Failed to fetch")).toHaveCount(0);
 });
 
 test("keeps OCR available in the background after the window is closed", async () => {

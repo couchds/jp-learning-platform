@@ -44,11 +44,6 @@ export async function fileToCapture(file: File): Promise<DesktopCapture> {
 }
 
 export async function captureToFile(capture: DesktopCapture, selection: CaptureSelection | null) {
-  if (!selection) {
-    const blob = await fetch(capture.dataUrl).then((response) => response.blob());
-    return new File([blob], "screen-capture.png", { type: blob.type || "image/png" });
-  }
-
   const image = await loadImage(capture.dataUrl);
   const crop = selectionPixels(selection, image.naturalWidth, image.naturalHeight);
   const canvas = document.createElement("canvas");
@@ -60,7 +55,7 @@ export async function captureToFile(capture: DesktopCapture, selection: CaptureS
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not prepare the selected image.")), "image/png");
   });
-  return new File([blob], "screen-selection.png", { type: "image/png" });
+  return new File([blob], selection ? "screen-selection.png" : "screen-capture.png", { type: "image/png" });
 }
 
 function readFile(file: File) {
