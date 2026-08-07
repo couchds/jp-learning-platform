@@ -81,6 +81,7 @@ test("exposes the supported grammar catalog", async () => {
   const response = await supertest(createApp()).get("/api/grammar/concepts").expect(200);
   assert.ok(response.body.concepts.length >= 20);
   assert.equal(response.body.concepts.some((concept: { id: string }) => concept.id === "te-kudasai"), true);
+  assert.equal(response.body.concepts.some((concept: { id: string }) => concept.id === "noun-no-noun"), true);
 });
 
 test.after(async () => {

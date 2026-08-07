@@ -16,7 +16,8 @@ export type GrammarConcept = {
   confidence: number;
 };
 
-export type GrammarMatch = GrammarConcept & {
+export type GrammarMatch = Omit<GrammarConcept, "id"> & {
+  conceptId: string;
   matchId: string;
   matchedText: string;
   sentence: string;
@@ -36,6 +37,16 @@ type OcrElement = {
   detection_index?: unknown;
   detectionIndex?: unknown;
   bbox?: unknown;
+  features?: unknown;
+};
+
+type GrammarToken = {
+  text: string;
+  pos1: string;
+  start: number;
+  end: number;
+  confidence?: number;
+  bbox?: GrammarBox;
 };
 
 const rules: GrammarRule[] = [
@@ -221,7 +232,37 @@ const rules: GrammarRule[] = [
   }
 ];
 
-export const grammarConcepts: GrammarConcept[] = rules.map(({ expression: _expression, ...concept }) => concept);
+const structuralConcepts = {
+  nounNoNoun: {
+    id: "noun-no-noun",
+    title: "Noun modification with の",
+    pattern: "Noun + の + noun",
+    explanation: "Uses の to connect two nouns, showing possession, category, or a descriptive relationship.",
+    jlptLevel: "N5",
+    confidence: 0.96
+  },
+  particleNi: {
+    id: "particle-ni",
+    title: "Location or target marker に",
+    pattern: "Place or target + に",
+    explanation: "Marks a location, destination, time, or target connected to the following expression.",
+    jlptLevel: "N5",
+    confidence: 0.93
+  },
+  particleGa: {
+    id: "particle-ga",
+    title: "Subject marker が",
+    pattern: "Subject + が",
+    explanation: "Marks the subject or the thing being identified, described, or perceived.",
+    jlptLevel: "N5",
+    confidence: 0.96
+  }
+} satisfies Record<string, GrammarConcept>;
+
+export const grammarConcepts: GrammarConcept[] = [
+  ...rules.map(({ expression: _expression, ...concept }) => concept),
+  ...Object.values(structuralConcepts)
+];
 
 export function detectGrammar(rawText: string, rawElements: unknown[] = []): GrammarMatch[] {
   if (!rawText.trim()) {
@@ -249,7 +290,7 @@ export function detectGrammar(rawText: string, rawElements: unknown[] = []): Gra
       );
 
       matches.push({
-        ...withoutExpression(rule),
+        ...matchConcept(rule),
         matchId: `${rule.id}:${start}:${end}`,
         matchedText,
         sentence: sentenceForRange(rawText, start, end),
@@ -260,6 +301,8 @@ export function detectGrammar(rawText: string, rawElements: unknown[] = []): Gra
       });
     }
   }
+
+  matches.push(...detectStructuralGrammar(rawText, elements));
 
   const specificMatches = matches.filter((candidate) => !matches.some((other) =>
     other.matchId !== candidate.matchId
@@ -279,8 +322,105 @@ export function findGrammarConcept(id: string) {
   return grammarConcepts.find((concept) => concept.id === id);
 }
 
-function withoutExpression({ expression: _expression, ...concept }: GrammarRule): GrammarConcept {
-  return concept;
+function matchConcept(concept: GrammarConcept) {
+  const { id: conceptId, ...details } = concept;
+  return { conceptId, ...details };
+}
+
+function detectStructuralGrammar(text: string, elements: OcrElement[]): GrammarMatch[] {
+  const tokens = grammarTokens(text, elements);
+  const matches: GrammarMatch[] = [];
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const previous = tokens[index - 1];
+    const token = tokens[index];
+    const next = tokens[index + 1];
+
+    if (isNominal(previous) && isParticle(token, "の") && isNominal(next)) {
+      matches.push(structuralMatch(structuralConcepts.nounNoNoun, [previous, token, next], text));
+    }
+    if (isNominal(previous) && isParticle(token, "に") && (isNominal(next) || isPredicate(next))) {
+      matches.push(structuralMatch(structuralConcepts.particleNi, [previous, token], text));
+    }
+    if (isNominal(previous) && isParticle(token, "が") && isPredicate(next)) {
+      matches.push(structuralMatch(structuralConcepts.particleGa, [previous, token], text));
+    }
+  }
+
+  return matches;
+}
+
+function grammarTokens(text: string, elements: OcrElement[]): GrammarToken[] {
+  const tokens: GrammarToken[] = [];
+  let cursor = 0;
+
+  for (const element of elements) {
+    const tokenText = typeof element.text === "string" ? element.text.trim() : "";
+    const features = element.features && typeof element.features === "object"
+      ? element.features as Record<string, unknown>
+      : null;
+    const pos1 = typeof features?.pos1 === "string" ? features.pos1 : "";
+    if (!tokenText || !pos1) continue;
+
+    const start = text.indexOf(tokenText, cursor);
+    if (start < 0) continue;
+    const end = start + tokenText.length;
+    tokens.push({
+      text: tokenText,
+      pos1,
+      start,
+      end,
+      confidence: numericConfidence(element.confidence),
+      bbox: parseBox(element.bbox)
+    });
+    cursor = end;
+  }
+
+  return tokens;
+}
+
+function structuralMatch(concept: GrammarConcept, tokens: GrammarToken[], text: string): GrammarMatch {
+  const start = tokens[0].start;
+  const end = tokens[tokens.length - 1].end;
+  const boxes = tokens.map((token) => token.bbox).filter((box): box is GrammarBox => Boolean(box));
+  const confidences = tokens
+    .map((token) => token.confidence)
+    .filter((confidence): confidence is number => confidence !== undefined);
+  const evidenceConfidence = confidences.length > 0
+    ? confidences.reduce((sum, confidence) => sum + confidence, 0) / confidences.length
+    : undefined;
+  const confidence = roundConfidence(
+    evidenceConfidence === undefined
+      ? concept.confidence
+      : concept.confidence * (0.75 + evidenceConfidence * 0.25)
+  );
+
+  return {
+    ...matchConcept(concept),
+    matchId: `${concept.id}:${start}:${end}`,
+    matchedText: tokens.map((token) => token.text).join(""),
+    sentence: normalizeJapaneseSpacing(sentenceForRange(text, start, end)),
+    start,
+    end,
+    confidence,
+    ...(boxes.length > 0 ? { bbox: unionBoxes(boxes) } : {})
+  };
+}
+
+function isNominal(token: GrammarToken | undefined) {
+  return token?.pos1 === "名詞" || token?.pos1 === "代名詞";
+}
+
+function isPredicate(token: GrammarToken | undefined) {
+  return token?.pos1 === "動詞" || token?.pos1 === "形容詞" || token?.pos1 === "形状詞";
+}
+
+function isParticle(token: GrammarToken | undefined, text: string) {
+  return token?.pos1 === "助詞" && token.text === text;
+}
+
+function normalizeJapaneseSpacing(text: string) {
+  return text.replace(/[\t\r\n ]+/g, "");
 }
 
 function sentenceForRange(text: string, start: number, end: number) {
