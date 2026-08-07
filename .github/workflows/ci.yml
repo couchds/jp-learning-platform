@@ -57,3 +57,45 @@ jobs:
           name: desktop-test-results-${{ matrix.os }}
           path: apps/desktop/test-results
           if-no-files-found: ignore
+
+  package-windows:
+    name: Package Windows installer
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [validate, desktop-smoke]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            services/ocr/requirements.txt
+            services/recognize/requirements.txt
+      - run: npm ci
+      - name: Restore managed service sidecars
+        id: sidecar-cache
+        uses: actions/cache@v5
+        with:
+          path: apps/desktop/sidecars
+          key: desktop-sidecars-windows-${{ hashFiles('scripts/build_desktop_sidecars.py', 'services/ocr/**', 'services/recognize/**') }}
+      - name: Build managed service sidecars
+        if: steps.sidecar-cache.outputs.cache-hit != 'true'
+        run: python scripts/build_desktop_sidecars.py
+      - name: Build Windows installer
+        run: npm run make:desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: yomunami-windows-${{ github.sha }}
+          path: apps/desktop/release/Yomunami-*-win-x64.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
