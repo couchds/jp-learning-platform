@@ -87,7 +87,7 @@ ocrRouter.post(
       const shouldOcr = req.query.ocr !== "false";
       const result = shouldOcr
         ? await runOcr(req.file.path, req.file.originalname, req.file.mimetype, requestAbortSignal(req))
-        : { rawText: "", elements: [] };
+        : { rawText: "", elements: [], grammarMatches: [] };
       const now = touchNow();
       const persist = db.transaction(() => {
         const saved = db
@@ -110,15 +110,19 @@ ocrRouter.post(
           ...term,
           sourceImageId: Number(saved.lastInsertRowid)
         }));
+        const grammarMatches = result.grammarMatches.map((match) => ({
+          ...match,
+          sourceImageId: Number(saved.lastInsertRowid)
+        }));
         const trackedTerms = req.query.track === "true" ? upsertResourceTerms(resourceId, suggestedTerms) : [];
         const image = db.prepare("SELECT * FROM resource_images WHERE id = ?").get(saved.lastInsertRowid);
-        return { image, suggestedTerms, trackedTerms };
+        return { image, suggestedTerms, grammarMatches, trackedTerms };
       });
       const saved = persist();
 
       res.status(201).json({
         image: mapImage(saved.image),
-        ocr: { ...result, terms: saved.suggestedTerms },
+        ocr: { ...result, terms: saved.suggestedTerms, grammarMatches: saved.grammarMatches },
         trackedTerms: saved.trackedTerms
       });
     } catch (error) {

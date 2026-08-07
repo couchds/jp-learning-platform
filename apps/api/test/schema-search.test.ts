@@ -8,7 +8,7 @@ test("FTS migration indexes existing data and keeps search rows current", () => 
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
   migrate(db);
-  assert.equal((db.prepare("SELECT MAX(id) AS version FROM schema_migrations").get() as { version: number }).version, 8);
+  assert.equal((db.prepare("SELECT MAX(id) AS version FROM schema_migrations").get() as { version: number }).version, 9);
 
   db.prepare("INSERT INTO kanji (literal, meanings_json) VALUES (?, ?)").run("日", '["sun","day"]');
   assert.equal((db.prepare("SELECT COUNT(*) AS count FROM kanji_search WHERE kanji_search MATCH ?").get(buildFtsQuery(["sun"])) as { count: number }).count, 1);

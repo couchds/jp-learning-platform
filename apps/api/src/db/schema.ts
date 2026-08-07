@@ -488,6 +488,33 @@ const migrations: Array<{ id: number; name: string; sql: string }> = [
         );
       END;
     `
+  },
+  {
+    id: 9,
+    name: "resource_grammar",
+    sql: `
+      CREATE TABLE IF NOT EXISTS resource_grammar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        resource_id INTEGER NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+        concept_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        pattern TEXT NOT NULL,
+        explanation TEXT NOT NULL,
+        jlpt_level TEXT NOT NULL,
+        matched_text TEXT NOT NULL,
+        source_sentence TEXT NOT NULL,
+        source_image_id INTEGER NOT NULL REFERENCES resource_images(id) ON DELETE CASCADE,
+        confidence REAL NOT NULL,
+        frequency INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(resource_id, concept_id, source_image_id, matched_text, source_sentence)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_resource_grammar_resource ON resource_grammar(resource_id, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_resource_grammar_concept ON resource_grammar(concept_id);
+      CREATE INDEX IF NOT EXISTS idx_resource_grammar_level ON resource_grammar(jlpt_level);
+    `
   }
 ];
 

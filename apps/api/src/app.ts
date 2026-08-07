@@ -6,6 +6,7 @@ import { errorHandler } from "./lib/http.js";
 import { dataRouter } from "./routes/data.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { graphRouter } from "./routes/graph.js";
+import { grammarRouter } from "./routes/grammar.js";
 import { importsRouter } from "./routes/imports.js";
 import { kanjiRouter } from "./routes/kanji.js";
 import { knowledgeRouter } from "./routes/knowledge.js";
@@ -60,6 +61,7 @@ export function createApp() {
   app.use("/api/data", dataRouter);
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/graph", graphRouter);
+  app.use("/api/grammar", grammarRouter);
   app.use("/api/imports", importsRouter);
   app.use("/api/kanji", kanjiRouter);
   app.use("/api/knowledge", knowledgeRouter);
