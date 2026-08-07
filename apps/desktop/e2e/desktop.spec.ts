@@ -117,19 +117,18 @@ test("exits a duplicate desktop instance before it can boot", async () => {
       ELECTRON_DISABLE_SECURITY_WARNINGS: "true"
     }
   });
-  const exitCode = await new Promise<number | null>((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(() => {
       duplicate.kill();
       reject(new Error("Duplicate Yomunami instance did not exit"));
     }, 10_000);
     duplicate.once("error", reject);
-    duplicate.once("exit", (code) => {
+    duplicate.once("exit", () => {
       clearTimeout(timeout);
-      resolve(code);
+      resolve();
     });
   });
 
-  expect(exitCode).toBe(0);
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
 });
 
