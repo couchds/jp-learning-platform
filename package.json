@@ -11,7 +11,6 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "build:overlay:macos": "bash scripts/build-desktop-overlay-macos.sh",
     "build:desktop-sidecars": "python scripts/build_desktop_sidecars.py",
     "check": "npm run check --workspaces --if-present",
     "dev": "concurrently -n api,web -c green,cyan \"npm run dev:api\" \"npm run dev:web\"",

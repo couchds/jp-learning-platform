@@ -11,15 +11,12 @@ describe("createServiceDefinitions", () => {
   it("marks absent packaged workers unavailable", () => {
     const definitions = createServiceDefinitions({
       resourceRoot: path.resolve("missing"),
-      apiUrl: "http://127.0.0.1:1234",
-      apiToken: "secret",
-      commandFile: path.resolve("command.json"),
       isPackaged: true,
       platform: "win32"
     });
-    expect(definitions).toHaveLength(3);
+    expect(definitions).toHaveLength(2);
     expect(definitions.every((definition) => !definition.available)).toBe(true);
-    expect(definitions.find((definition) => definition.id === "overlay")?.env?.YOMUNAMI_API_TOKEN).toBe("secret");
+    expect(definitions.map((definition) => definition.id)).toEqual(["ocr", "recognition"]);
   });
 
   it("prefers a service virtual environment during development", async () => {
@@ -32,9 +29,6 @@ describe("createServiceDefinitions", () => {
     await fs.writeFile(path.join(serviceRoot, "app.py"), "print('ok')");
     const definitions = createServiceDefinitions({
       resourceRoot: root,
-      apiUrl: "http://127.0.0.1:1234",
-      apiToken: "secret",
-      commandFile: path.join(root, "command.json"),
       isPackaged: false,
       platform: "win32"
     });

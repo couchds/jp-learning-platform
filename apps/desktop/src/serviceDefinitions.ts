@@ -5,9 +5,6 @@ import type { ManagedServiceSpec } from "./serviceSupervisor.js";
 
 type DefinitionOptions = {
   resourceRoot: string;
-  apiUrl: string;
-  apiToken: string;
-  commandFile: string;
   isPackaged: boolean;
   platform?: NodeJS.Platform;
 };
@@ -37,15 +34,6 @@ function developmentDefinitions(options: DefinitionOptions, platform: NodeJS.Pla
       platform,
       healthUrl: "http://127.0.0.1:5000/health",
       env: { RECOGNITION_SERVICE_HOST: "127.0.0.1", RECOGNITION_SERVICE_PORT: "5000" }
-    }),
-    pythonService({
-      id: "overlay",
-      label: "Screen capture",
-      root: path.join(options.resourceRoot, "services/desktop-overlay"),
-      script: "overlay.py",
-      platform,
-      env: overlayEnvironment(options),
-      startupTimeoutMs: 3_000
     })
   ];
   return definitions.map((definition) => ({ ...definition, startOnLaunch: true, autoRestart: true }));
@@ -73,15 +61,6 @@ function packagedDefinitions(options: DefinitionOptions, platform: NodeJS.Platfo
       env: { RECOGNITION_SERVICE_HOST: "127.0.0.1", RECOGNITION_SERVICE_PORT: "5000" },
       startOnLaunch: true,
       autoRestart: true
-    },
-    {
-      id: "overlay",
-      label: "Screen capture",
-      command: path.join(sidecarRoot, `yomunami-overlay${executableSuffix}`),
-      env: overlayEnvironment(options),
-      startOnLaunch: true,
-      autoRestart: true,
-      startupTimeoutMs: 3_000
     }
   ];
   return values.map((value) => ({
@@ -132,15 +111,4 @@ function resolvePython(serviceRoot: string, platform: NodeJS.Platform) {
     if (!result.error) return { ...candidate, available: true };
   }
   return { ...candidates[0], available: false };
-}
-
-function overlayEnvironment(options: DefinitionOptions) {
-  return {
-    YOMUNAMI_API_URL: options.apiUrl,
-    YOMUNAMI_API_TOKEN: options.apiToken,
-    YOMUNAMI_COMMAND_FILE: options.commandFile,
-    YOMUNAMI_DISABLE_HOTKEY: "1",
-    YOMUNAMI_START_HIDDEN: "1",
-    YOMUNAMI_WEB_URL: "yomunami://open"
-  };
 }

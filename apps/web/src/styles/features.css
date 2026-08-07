@@ -886,13 +886,11 @@
   color: #953820;
 }
 
-.overlay-panel,
 .ocr-service-panel,
 .quiz-panel {
   min-height: 315px;
 }
 
-.overlay-status,
 .service-launch-card {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -905,10 +903,6 @@
   padding: 16px;
   margin-bottom: 14px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
-}
-
-.overlay-status svg {
-  color: var(--reef-teal);
 }
 
 .service-launch-card.ready svg {
@@ -928,14 +922,12 @@
 }
 
 .service-launch-card p,
-.overlay-status p,
 .helper-text {
   color: var(--muted-ink);
   line-height: 1.5;
 }
 
-.service-launch-card p,
-.overlay-status p {
+.service-launch-card p {
   margin: 6px 0 0;
 }
 

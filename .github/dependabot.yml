@@ -8,10 +8,6 @@ updates:
       npm-dependencies:
         patterns: ["*"]
   - package-ecosystem: pip
-    directory: /services/desktop-overlay
-    schedule:
-      interval: weekly
-  - package-ecosystem: pip
     directory: /services/recognize
     schedule:
       interval: weekly

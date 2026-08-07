@@ -9,7 +9,7 @@ from scripts.build_desktop_sidecars import SIDECARS, build_command
 
 class DesktopPackagingTests(unittest.TestCase):
     def test_all_managed_services_have_unique_binary_names(self) -> None:
-        self.assertEqual(set(SIDECARS), {"ocr", "recognition", "overlay"})
+        self.assertEqual(set(SIDECARS), {"ocr", "recognition"})
         names = [spec.executable_name for spec in SIDECARS.values()]
         self.assertEqual(len(names), len(set(names)))
 

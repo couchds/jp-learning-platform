@@ -1,19 +1,10 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { virtualEnvPythonPath } from "./services/pythonRuntime.js";
 
 const apiDir = path.dirname(fileURLToPath(import.meta.url));
 const sourceRepoRoot = path.resolve(apiDir, "../../..");
 const resourceRoot = path.resolve(process.env.YOMUNAMI_RESOURCE_ROOT ?? sourceRepoRoot);
 const dataRoot = path.resolve(process.env.YOMUNAMI_DATA_ROOT ?? path.join(resourceRoot, "data/local"));
-const overlayRoot = path.join(resourceRoot, "services/desktop-overlay");
-const ocrRoot = path.join(resourceRoot, "services/ocr");
-const defaultOverlayScriptPath = path.join(overlayRoot, "overlay.py");
-const defaultOverlayPythonPath = virtualEnvPythonPath(overlayRoot);
-const defaultOverlayAppPath = path.join(overlayRoot, "dist/Yomunami OCR Overlay.app");
-const defaultOverlayAppExecutablePath = path.join(defaultOverlayAppPath, "Contents/MacOS/Yomunami OCR Overlay");
-const defaultOcrScriptPath = path.join(ocrRoot, "app.py");
-const defaultOcrPythonPath = virtualEnvPythonPath(ocrRoot);
 
 function boolFromEnv(value: string | undefined, fallback: boolean): boolean {
   if (value == null || value.trim() === "") {
@@ -37,17 +28,6 @@ function listFromEnv(value: string | undefined, fallback: string[]): string[] {
 function numberFromEnv(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function serviceScriptPathFromEnv(value: string | undefined, fallback: string, serviceRoot: string, envName: string): string {
-  const resolved = path.resolve(value ?? fallback);
-  const relative = path.relative(serviceRoot, resolved);
-
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(`${envName} must point inside ${path.relative(resourceRoot, serviceRoot)}`);
-  }
-
-  return resolved;
 }
 
 export const config = {
@@ -80,20 +60,7 @@ export const config = {
   serviceUploadTimeoutMs: numberFromEnv(process.env.SERVICE_UPLOAD_TIMEOUT_MS, 120_000),
   serviceResponseLimitBytes: numberFromEnv(process.env.SERVICE_RESPONSE_LIMIT_BYTES, 2 * 1024 * 1024),
   proxyFileLimitBytes: numberFromEnv(process.env.PROXY_FILE_LIMIT_BYTES, 30 * 1024 * 1024),
-  importDownloadTimeoutMs: numberFromEnv(process.env.IMPORT_DOWNLOAD_TIMEOUT_MS, 120_000),
-  ocrServiceRoot: ocrRoot,
-  ocrScriptPath: serviceScriptPathFromEnv(process.env.OCR_SCRIPT_PATH, defaultOcrScriptPath, ocrRoot, "OCR_SCRIPT_PATH"),
-  ocrPythonPath: process.env.OCR_PYTHON_PATH ?? defaultOcrPythonPath,
-  overlayScriptPath: serviceScriptPathFromEnv(
-    process.env.OVERLAY_SCRIPT_PATH,
-    defaultOverlayScriptPath,
-    overlayRoot,
-    "OVERLAY_SCRIPT_PATH"
-  ),
-  overlayPythonPath: process.env.OVERLAY_PYTHON_PATH ?? defaultOverlayPythonPath,
-  overlayAppPath: process.env.OVERLAY_APP_PATH ?? defaultOverlayAppPath,
-  overlayAppExecutablePath: process.env.OVERLAY_APP_EXECUTABLE_PATH ?? defaultOverlayAppExecutablePath,
-  webAppUrl: process.env.WEB_APP_URL ?? "http://127.0.0.1:5173"
+  importDownloadTimeoutMs: numberFromEnv(process.env.IMPORT_DOWNLOAD_TIMEOUT_MS, 120_000)
 };
 
 export type AppConfig = typeof config;

@@ -21,7 +21,7 @@ describe("desktop-aware settings", () => {
   it("shows friendly managed-service health and can recover services", async () => {
     const initial: DesktopService[] = [
       { id: "ocr", label: "Text recognition", status: "running", detail: "Ready", managed: true },
-      { id: "overlay", label: "Screen capture", status: "failed", detail: "Could not start", managed: false }
+      { id: "recognition", label: "Handwriting recognition", status: "failed", detail: "Could not start", managed: false }
     ];
     const recovered = initial.map((service) => ({ ...service, status: "running" as const, detail: "Ready", managed: true }));
     const restartServices = vi.fn().mockResolvedValue(recovered);

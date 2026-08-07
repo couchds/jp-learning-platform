@@ -5,7 +5,6 @@ import { getDb } from "./db/index.js";
 import { errorHandler } from "./lib/http.js";
 import { dataRouter } from "./routes/data.js";
 import { dashboardRouter } from "./routes/dashboard.js";
-import { desktopRouter } from "./routes/desktop.js";
 import { graphRouter } from "./routes/graph.js";
 import { importsRouter } from "./routes/imports.js";
 import { kanjiRouter } from "./routes/kanji.js";
@@ -60,7 +59,6 @@ export function createApp() {
   app.use("/uploads", express.static(config.uploadDir));
   app.use("/api/data", dataRouter);
   app.use("/api/dashboard", dashboardRouter);
-  app.use("/api/desktop", desktopRouter);
   app.use("/api/graph", graphRouter);
   app.use("/api/imports", importsRouter);
   app.use("/api/kanji", kanjiRouter);

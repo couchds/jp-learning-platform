@@ -4,7 +4,7 @@ Yomunami is a local-first Japanese learning app for collecting words and kanji f
 
 ## Apps
 
-- **Desktop app:** the primary experience. It starts its private API and managed OCR, handwriting, and screen-capture workers automatically.
+- **Desktop app:** the primary experience. It starts its private API and managed OCR and handwriting workers automatically. Screen capture is built into Electron.
 - **Web app:** a client for an already-running Yomunami backend. It never starts or stops local services.
 - **Local API:** the shared backend used by both apps, with SQLite and local file storage.
 
@@ -31,9 +31,6 @@ services/ocr/.venv/Scripts/python -m pip install -r services/ocr/requirements.tx
 
 py -3 -m venv services/recognize/.venv
 services/recognize/.venv/Scripts/python -m pip install -r services/recognize/requirements.txt
-
-py -3 -m venv services/desktop-overlay/.venv
-services/desktop-overlay/.venv/Scripts/python -m pip install -r services/desktop-overlay/requirements.txt
 ```
 
 On macOS/Linux, use `.venv/bin/python` in the same commands.
@@ -44,7 +41,7 @@ Start the complete desktop app:
 npm run dev:desktop
 ```
 
-The desktop main process chooses a private API port, stores data outside the repository, supervises available workers, owns the global capture command, and shuts everything down with the app.
+The desktop main process chooses a private API port, stores data outside the repository, supervises available workers, owns native screen capture and the global capture command, and shuts everything down with the app. Captures return to the main window for cropping, OCR review, and selective term saving.
 
 ## Web Development
 
@@ -85,7 +82,6 @@ apps/
   desktop/   Electron main process, preload, packaging, and E2E tests
   web/       Shared React renderer and browser client
 services/
-  desktop-overlay/ Screen-capture review overlay
   ocr/             Japanese OCR worker
   recognize/       KanjiDraw handwriting worker
 scripts/           Data import and desktop packaging tools

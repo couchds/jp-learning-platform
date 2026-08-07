@@ -1,6 +1,4 @@
-import fsSync from "node:fs";
 import fs from "node:fs/promises";
-import { spawn } from "node:child_process";
 import { Router } from "express";
 import { config } from "../config.js";
 import { getDb, readJson, touchNow, writeJson } from "../db/index.js";
@@ -8,7 +6,6 @@ import { asyncHandler, HttpError, requestAbortSignal } from "../lib/http.js";
 import { imageUpload, relativeUploadPath } from "../services/localUpload.js";
 import { termsFromOcrElements, upsertResourceTerms } from "../services/ocrTerms.js";
 import { postFile } from "../services/serviceProxy.js";
-import { resolvePythonRuntime } from "../services/pythonRuntime.js";
 import { removeUploadedFile } from "../services/uploadLifecycle.js";
 
 type OcrResponse = {
@@ -25,9 +22,6 @@ type OcrResponse = {
 };
 
 export const ocrRouter = Router();
-
-const OCR_LAUNCH_COOLDOWN_MS = 10_000;
-let lastOcrLaunch: { pid: number | undefined; launchedAt: number } | null = null;
 
 ocrRouter.get(
   "/health",
@@ -50,129 +44,6 @@ ocrRouter.get(
       available: health.available,
       health: health.payload,
       error: health.available ? undefined : health.reason
-    });
-  })
-);
-
-ocrRouter.post(
-  "/service/launch",
-  asyncHandler(async (_req, res) => {
-    if (!fsSync.existsSync(config.ocrScriptPath)) {
-      throw new HttpError(404, "OCR service script is not installed");
-    }
-
-    const currentHealth = await getOcrHealth();
-    if (currentHealth.available || (currentHealth.reachable && currentHealth.expectedService)) {
-      const python = resolvePythonRuntime(config.ocrPythonPath);
-      res.status(currentHealth.available ? 200 : 202).json({
-        launched: false,
-        alreadyRunning: true,
-        service: "ocr",
-        url: config.ocrServiceUrl,
-        python: python.label,
-        pythonDetail: python.detail,
-        health: currentHealth.payload,
-        available: currentHealth.available,
-        error: currentHealth.available ? undefined : currentHealth.reason
-      });
-      return;
-    }
-
-    const now = Date.now();
-    if (lastOcrLaunch && now - lastOcrLaunch.launchedAt < OCR_LAUNCH_COOLDOWN_MS) {
-      res.status(202).json({
-        launched: false,
-        alreadyRequested: true,
-        pid: lastOcrLaunch.pid,
-        service: "ocr",
-        url: config.ocrServiceUrl
-      });
-      return;
-    }
-
-    const launchTarget = ocrLaunchTarget();
-    const python = resolvePythonRuntime(config.ocrPythonPath);
-    if (!python.available) {
-      throw new HttpError(500, `Could not launch OCR service: Python was not found (${python.detail}).`);
-    }
-
-    const child = spawn(python.command, [...python.argsPrefix, config.ocrScriptPath], {
-      cwd: config.ocrServiceRoot,
-      detached: true,
-      stdio: ["ignore", "ignore", "pipe"],
-      windowsHide: true,
-      env: {
-        ...process.env,
-        OCR_HOST: launchTarget.hostname,
-        OCR_PORT: launchTarget.port,
-        OCR_BACKEND: process.env.OCR_BACKEND ?? "auto",
-        HF_HUB_DISABLE_XET: process.env.HF_HUB_DISABLE_XET ?? (process.platform === "win32" ? "1" : undefined),
-        LOCAL_ALLOWED_ORIGINS: config.allowedOrigins.join(",")
-      }
-    });
-
-    const startupErrors: string[] = [];
-    const appendStartupError = (chunk: Buffer | string) => {
-      startupErrors.push(String(chunk));
-      if (startupErrors.join("").length > 4096) {
-        startupErrors.splice(0, startupErrors.length - 1);
-      }
-    };
-
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        cleanup();
-        resolve();
-      }, 900);
-
-      function cleanup() {
-        clearTimeout(timer);
-        child.off("error", onError);
-        child.off("exit", onExit);
-        child.stderr?.off("data", appendStartupError);
-        (child.stderr as (typeof child.stderr & { unref?: () => void }) | null)?.unref?.();
-      }
-
-      function onError(error: Error) {
-        cleanup();
-        reject(error);
-      }
-
-      function onExit(code: number | null, signal: NodeJS.Signals | null) {
-        cleanup();
-        const detail = summarizeStartupError(startupErrors.join(""));
-        reject(
-          new Error(
-            `process exited during startup with ${signal ?? `code ${code ?? "unknown"}`}${
-              detail ? `: ${detail}` : ""
-            }`
-          )
-        );
-      }
-
-      child.stderr?.on("data", appendStartupError);
-      child.once("error", onError);
-      child.once("exit", onExit);
-    }).catch((error: unknown) => {
-      throw new HttpError(
-        500,
-        error instanceof Error ? `Could not launch OCR service: ${error.message}` : "Could not launch OCR service"
-      );
-    });
-
-    child.on("error", (error) => {
-      console.error(`OCR service process error: ${error.message}`);
-    });
-    child.unref();
-    lastOcrLaunch = { pid: child.pid, launchedAt: now };
-
-    res.status(202).json({
-      launched: true,
-      pid: child.pid,
-      service: "ocr",
-      url: config.ocrServiceUrl,
-      python: python.label,
-      pythonDetail: python.detail
     });
   })
 );
@@ -347,27 +218,6 @@ function isExpectedOcrService(payload: unknown) {
 
   const health = payload as { service?: unknown; local_only?: unknown };
   return health.service === "ocr" && health.local_only === true;
-}
-
-function ocrLaunchTarget() {
-  const url = new URL(config.ocrServiceUrl);
-  if (!["127.0.0.1", "localhost"].includes(url.hostname)) {
-    throw new HttpError(400, "OCR_SERVICE_URL must point to localhost before it can be launched from the app");
-  }
-
-  return {
-    hostname: url.hostname,
-    port: url.port || "5100"
-  };
-}
-
-function summarizeStartupError(stderr: string) {
-  const lines = stderr
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  return lines.at(-1) ?? "";
 }
 
 function mapImage(row: unknown) {

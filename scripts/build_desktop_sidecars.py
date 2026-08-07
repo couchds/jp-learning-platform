@@ -49,15 +49,6 @@ SIDECARS = {
         entrypoint="app.py",
         collect_all=("kanjidraw",),
     ),
-    "overlay": SidecarSpec(
-        service_id="overlay",
-        executable_name="yomunami-overlay",
-        service_root=REPO_ROOT / "services" / "desktop-overlay",
-        entrypoint="overlay.py",
-        hidden_imports=("PIL._tkinter_finder",),
-        collect_all=("pynput",),
-        windowed_on_windows=True,
-    ),
 }
 
 

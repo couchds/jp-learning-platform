@@ -20,7 +20,6 @@ export function resolveDesktopRuntimePaths(options: {
     importDir: path.join(dataRoot, "imports"),
     uploadDir: path.join(dataRoot, "uploads"),
     backupDir: path.join(dataRoot, "backups"),
-    logDir: path.join(options.userDataPath, "logs"),
-    commandFile: path.join(options.userDataPath, "overlay-command.json")
+    logDir: path.join(options.userDataPath, "logs")
   };
 }

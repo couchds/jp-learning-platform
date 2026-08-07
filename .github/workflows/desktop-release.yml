@@ -37,7 +37,6 @@ jobs:
           cache-dependency-path: |
             services/ocr/requirements.txt
             services/recognize/requirements.txt
-            services/desktop-overlay/requirements.txt
       - run: npm ci
       - name: Build managed service sidecars
         run: python scripts/build_desktop_sidecars.py

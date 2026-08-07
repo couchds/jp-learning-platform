@@ -39,6 +39,5 @@ describe("critical routed view states", () => {
     expect(await screen.findByText("Upload a screenshot")).toBeInTheDocument();
     expect(screen.getByText("Choose image")).toBeInTheDocument();
     expect(screen.queryByText("Start OCR service")).not.toBeInTheDocument();
-    expect(screen.queryByText("Launch overlay")).not.toBeInTheDocument();
   });
 });

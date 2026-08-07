@@ -74,9 +74,6 @@ async function boot() {
   supervisor = new ServiceSupervisor(
     createServiceDefinitions({
       resourceRoot: runtimePaths.resourceRoot,
-      apiUrl: backend.url,
-      apiToken,
-      commandFile: runtimePaths.commandFile,
       isPackaged: app.isPackaged
     }),
     {
@@ -209,5 +206,4 @@ async function shutdown() {
   globalShortcut.unregisterAll();
   await supervisor?.stopAll();
   await backend?.close();
-  await fs.rm(runtimePaths.commandFile, { force: true });
 }

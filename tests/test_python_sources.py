@@ -12,7 +12,6 @@ class PythonSourceTests(unittest.TestCase):
     def test_tracked_python_sources_parse(self) -> None:
         roots = [
             REPO_ROOT / "scripts",
-            REPO_ROOT / "services" / "desktop-overlay",
             REPO_ROOT / "services" / "recognize",
         ]
         sources = [

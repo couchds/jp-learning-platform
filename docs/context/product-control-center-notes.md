@@ -1,10 +1,11 @@
 # Product Control Center Notes
 
-## Browser Workflows
+## Shared Workflows
 
 - Home is the first screen and should describe the local-first product loop.
-- Capture is the browser entry point for launching the desktop OCR overlay.
-- Capture also supports explicit screenshot upload and can attach OCR terms/images to a selected resource.
+- Capture supports image upload in both clients and native screen capture in Electron.
+- Desktop captures return to the main Capture page for cropping and selective term review.
+- The browser connects to an existing backend and never starts or stops companion services.
 - Tracker is the resource term workspace for OCR-derived and manual vocabulary.
 - Quiz builds decks from resource terms and custom vocabulary.
 
@@ -12,5 +13,4 @@
 
 - Add term-level mastery controls directly inside Tracker.
 - Add quiz modes for reading-only, meaning-only, kanji recognition, and mixed review.
-- Add an overlay single-instance protocol when the desktop client is packaged.
-- Add explicit screenshot-save controls for overlay captures if the learner wants provenance images.
+- Add explicit screenshot-save controls if the learner wants provenance images.

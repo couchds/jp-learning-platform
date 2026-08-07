@@ -4,10 +4,17 @@ All notable changes to this project will be documented here.
 
 This project follows semantic versioning.
 
+## Unreleased
+
+- Move screen capture, cropping, OCR review, and selective term saving into the Electron client.
+- Route the global capture shortcut into the main Capture page.
+- Remove the Python/Tk overlay worker and browser-callable service launch routes.
+- Package only the OCR and handwriting recognition sidecars.
+
 ## 0.7.0 - 2026-08-06
 
 - Add a packaged Electron desktop app with an embedded authenticated API and OS-managed user data.
-- Supervise OCR, handwriting recognition, and screen-capture workers with health checks, logs, restart limits, and clean shutdown.
+- Supervise OCR and handwriting recognition workers with health checks, logs, restart limits, and clean shutdown.
 - Keep the web app as a backend client and move all service lifecycle controls into the desktop main process.
 - Simplify navigation to Today, Capture, Library, Review, Search, and Settings for a non-technical audience.
 - Add desktop-aware Capture and Settings experiences, backup controls, app health, and file-safe packaged navigation.

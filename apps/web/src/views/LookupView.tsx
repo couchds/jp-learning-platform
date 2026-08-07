@@ -38,7 +38,6 @@ import {
 import type {
   DataSummary,
   Dashboard,
-  DesktopOverlayStatus,
   ImportJob,
   Kanji,
   KanjiGraph,

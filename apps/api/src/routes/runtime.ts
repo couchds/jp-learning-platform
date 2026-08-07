@@ -1,11 +1,10 @@
 import fs from "node:fs";
 import { constants } from "node:fs";
-import { spawn } from "node:child_process";
 import path from "node:path";
 import { Router } from "express";
 import { config } from "../config.js";
 import { asyncHandler } from "../lib/http.js";
-import { resolvePythonRuntime, venvSetupHint } from "../services/pythonRuntime.js";
+import { venvSetupHint } from "../services/pythonRuntime.js";
 
 type DoctorStatus = "ok" | "warn" | "error";
 
@@ -18,26 +17,15 @@ type DoctorCheck = {
 };
 
 export const runtimeRouter = Router();
-const OVERLAY_IMPORT_CACHE_MS = 30_000;
-let overlayImportCache: { expiresAt: number; value: DoctorCheck } | undefined;
 
 runtimeRouter.get(
   "/doctor",
   asyncHandler(async (_req, res) => {
     const checks: DoctorCheck[] = [
-      ...(process.platform === "darwin" ? [overlayAppBundleCheck()] : []),
-      overlayScriptCheck(),
-      overlayPythonCheck(),
       writablePathCheck("data", config.databasePath),
       writablePathCheck("uploads", config.uploadDir),
-      macPermissionHint()
+      screenPermissionCheck()
     ];
-
-    checks.splice(
-      process.platform === "darwin" ? 3 : 2,
-      0,
-      await overlayImportCheck()
-    );
     checks.push(
       ...(await Promise.all([
         serviceCheck("ocr", config.ocrServiceUrl),
@@ -52,124 +40,6 @@ runtimeRouter.get(
     });
   })
 );
-
-function overlayAppBundleCheck(): DoctorCheck {
-  const exists = fs.existsSync(config.overlayAppExecutablePath);
-  return {
-    id: "overlay-app-bundle",
-    label: "Desktop overlay macOS app",
-    status: exists ? "ok" : "warn",
-    detail: exists ? "Installed as Yomunami OCR Overlay.app" : "Not built; browser launcher will use Python fallback",
-    action: exists ? undefined : "Run: npm run build:overlay:macos"
-  };
-}
-
-function overlayScriptCheck(): DoctorCheck {
-  const exists = fs.existsSync(config.overlayScriptPath);
-  return {
-    id: "overlay-script",
-    label: "Desktop overlay script",
-    status: exists ? "ok" : "error",
-    detail: exists ? "Installed" : "Missing services/desktop-overlay/overlay.py",
-    action: exists ? undefined : "Restore the desktop overlay files."
-  };
-}
-
-function overlayPythonCheck(): DoctorCheck {
-  const hasAppBundle = fs.existsSync(config.overlayAppExecutablePath);
-  const python = resolvePythonRuntime(config.overlayPythonPath);
-  return {
-    id: "overlay-python",
-    label: "Overlay Python runtime",
-    status: python.available || hasAppBundle ? "ok" : "warn",
-    detail: hasAppBundle
-      ? "Packaged app bundle is available"
-      : python.label === "venv"
-        ? "Using services/desktop-overlay/.venv"
-        : python.available
-          ? `Using system Python fallback: ${python.detail}`
-          : `System Python fallback was not found: ${python.detail}`,
-    action: python.available || hasAppBundle
-      ? undefined
-      : `Install Python 3 or create the overlay venv. ${venvSetupHint("services/desktop-overlay")}`
-  };
-}
-
-async function overlayImportCheck(): Promise<DoctorCheck> {
-  if (overlayImportCache && overlayImportCache.expiresAt > Date.now()) {
-    return overlayImportCache.value;
-  }
-
-  const value = await runOverlayImportCheck();
-  overlayImportCache = { value, expiresAt: Date.now() + OVERLAY_IMPORT_CACHE_MS };
-  return value;
-}
-
-async function runOverlayImportCheck(): Promise<DoctorCheck> {
-  if (fs.existsSync(config.overlayAppExecutablePath)) {
-    return {
-      id: "overlay-imports",
-      label: "Overlay Python packages",
-      status: "ok",
-      detail: "Packaged app bundle includes overlay runtime dependencies"
-    };
-  }
-
-  const python = resolvePythonRuntime(config.overlayPythonPath);
-  if (!python.available) {
-    return {
-      id: "overlay-imports",
-      label: "Overlay Python packages",
-      status: "error",
-      detail: `Python was not found (${python.detail})`,
-      action: `Install Python 3 or create the overlay venv. ${venvSetupHint("services/desktop-overlay")}`
-    };
-  }
-
-  const result = await runProcess(
-    python.command,
-    [...python.argsPrefix, "-c", "import requests, tkinter, PIL, pynput, mss; print('ok')"],
-    7000
-  );
-
-  if (result.code === 0) {
-    return {
-      id: "overlay-imports",
-      label: "Overlay Python packages",
-      status: "ok",
-      detail: "requests, tkinter, Pillow, pynput, and mss import successfully"
-    };
-  }
-
-  return {
-    id: "overlay-imports",
-    label: "Overlay Python packages",
-    status: "error",
-    detail: summarizeProcessFailure(result.stderr || result.stdout || result.error || "Import check failed"),
-    action: venvSetupHint("services/desktop-overlay")
-  };
-}
-
-export function runProcess(command: string, args: string[], timeoutMs: number) {
-  return new Promise<{ code: number | null; stdout: string; stderr: string; error?: string }>((resolve) => {
-    const child = spawn(command, args, { windowsHide: true });
-    let stdout = "";
-    let stderr = "";
-    let error: string | undefined;
-    const append = (current: string, chunk: Buffer) => (current + chunk.toString("utf8")).slice(-8192);
-    child.stdout.on("data", (chunk: Buffer) => { stdout = append(stdout, chunk); });
-    child.stderr.on("data", (chunk: Buffer) => { stderr = append(stderr, chunk); });
-    child.once("error", (failure) => { error = failure.message; });
-    const timer = setTimeout(() => {
-      error = `Import check timed out after ${timeoutMs}ms`;
-      child.kill();
-    }, timeoutMs);
-    child.once("close", (code) => {
-      clearTimeout(timer);
-      resolve({ code, stdout, stderr, error });
-    });
-  });
-}
 
 function writablePathCheck(id: string, targetPath: string): DoctorCheck {
   const directory = id === "data" ? path.dirname(targetPath) : targetPath;
@@ -242,19 +112,15 @@ async function serviceCheck(service: string, baseUrl: string): Promise<DoctorChe
   }
 }
 
-function macPermissionHint(): DoctorCheck {
-  const permissionTarget = fs.existsSync(config.overlayAppExecutablePath)
-    ? "Yomunami OCR Overlay.app"
-    : "Terminal or Python";
-  if (process.platform !== "darwin") {
+export function screenPermissionCheck(platform: NodeJS.Platform = process.platform): DoctorCheck {
+  if (platform !== "darwin") {
     return {
       id: "screen-permissions",
       label: "Screen capture permissions",
       status: "ok",
-      detail:
-        process.platform === "win32"
-          ? "Windows does not require macOS Screen Recording permissions for the overlay."
-          : "No macOS Screen Recording permissions needed on this platform."
+      detail: platform === "win32"
+        ? "Screen capture is provided by the Yomunami desktop app."
+        : "Screen capture permission is managed by the desktop session."
     };
   }
 
@@ -262,8 +128,8 @@ function macPermissionHint(): DoctorCheck {
     id: "screen-permissions",
     label: "macOS screen permissions",
     status: "warn",
-    detail: `macOS may require Accessibility and Screen Recording permissions for ${permissionTarget}.`,
-    action: `Open System Settings > Privacy & Security and allow Accessibility and Screen Recording for ${permissionTarget}.`
+    detail: "macOS may require Screen Recording permission for Yomunami.",
+    action: "Open System Settings > Privacy & Security > Screen Recording and allow Yomunami."
   };
 }
 
@@ -346,14 +212,4 @@ function summarize(checks: DoctorCheck[]) {
     return "warn";
   }
   return "ok";
-}
-
-function summarizeProcessFailure(output: string) {
-  return (
-    output
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .at(-1) ?? "Import check failed"
-  );
 }

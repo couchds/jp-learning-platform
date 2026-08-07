@@ -323,19 +323,6 @@ export type RecognitionResult = {
   error?: string;
 };
 
-export type DesktopOverlayStatus = {
-  available: boolean;
-  overlay: string;
-  appBundle?: "installed" | "missing";
-  platform?: string;
-  launchTarget?: "app-bundle" | "python";
-  launchTargetDetail?: string;
-  python?: "venv" | "system";
-  pythonDetail?: string;
-  apiUrl: string;
-  webUrl?: string;
-};
-
 export type QuizQuestion = {
   id: string;
   sourceType: string;
