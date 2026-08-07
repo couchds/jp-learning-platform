@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { getDb, readJson, touchNow, writeJson } from "../db/index.js";
+import { getDb, touchNow, writeJson } from "../db/index.js";
 import {
   mapKanji,
   type KanjiRow,
@@ -16,6 +16,12 @@ import { type SuggestedTerm, upsertResourceTerms } from "../services/ocrTerms.js
 import { stageUploadedFiles } from "../services/uploadLifecycle.js";
 import { buildBalancedQuizDeck } from "../services/quiz.js";
 import { recordReviewResult } from "../services/reviews.js";
+import { listResourceGrammar } from "../services/grammarStore.js";
+import {
+  analyzeResourceImage,
+  mapResourceImageSummary,
+  type ResourceImageRow
+} from "../services/resourceImages.js";
 
 const resourceSchema = z.object({
   name: z.string().trim().min(1).max(500),
@@ -177,8 +183,7 @@ resourcesRouter.get(
 
     const images = getDb()
       .prepare("SELECT * FROM resource_images WHERE resource_id = ? ORDER BY created_at DESC")
-      .all(id)
-      .map(mapResourceImage);
+      .all(id) as ResourceImageRow[];
     const terms = getDb()
       .prepare("SELECT * FROM resource_terms WHERE resource_id = ? ORDER BY frequency DESC, updated_at DESC")
       .all(id) as ResourceTermRow[];
@@ -195,8 +200,29 @@ resourcesRouter.get(
       })),
       customVocabulary,
       terms: terms.map(mapResourceTerm),
-      images
+      images: images.map(mapResourceImageSummary)
     });
+  })
+);
+
+resourcesRouter.get(
+  "/:id/images/:imageId",
+  asyncHandler((req, res) => {
+    const resourceId = Number(req.params.id);
+    const imageId = Number(req.params.imageId);
+    getResourceOrThrow(resourceId);
+    const row = getDb()
+      .prepare("SELECT * FROM resource_images WHERE id = ? AND resource_id = ?")
+      .get(imageId, resourceId) as ResourceImageRow | undefined;
+    if (!row) throw new HttpError(404, "Resource image not found");
+
+    const analysis = analyzeResourceImage(row);
+    const savedTerms = (getDb()
+      .prepare("SELECT * FROM resource_terms WHERE resource_id = ? AND source_image_id = ? ORDER BY term_type, text")
+      .all(resourceId, imageId) as ResourceTermRow[]).map(mapResourceTerm);
+    const savedGrammar = listResourceGrammar(resourceId).filter((item) => item.sourceImageId === imageId);
+
+    res.json({ ...analysis, savedTerms, savedGrammar });
   })
 );
 
@@ -635,32 +661,4 @@ function validateTermImageSources(resourceId: number, terms: Pick<SuggestedTerm,
   if (rows.length !== imageIds.length) {
     throw new HttpError(400, "sourceImageId must belong to the target resource");
   }
-}
-
-function mapResourceImage(row: unknown) {
-  const image = row as {
-    id: number;
-    resource_id: number | null;
-    file_path: string;
-    original_name: string | null;
-    mime_type: string | null;
-    size_bytes: number | null;
-    ocr_text: string | null;
-    ocr_elements_json: string;
-    created_at: string;
-    updated_at: string;
-  };
-
-  return {
-    id: image.id,
-    resourceId: image.resource_id,
-    filePath: image.file_path,
-    originalName: image.original_name,
-    mimeType: image.mime_type,
-    sizeBytes: image.size_bytes,
-    ocrText: image.ocr_text,
-    ocrElements: readJson<unknown[]>(image.ocr_elements_json, []),
-    createdAt: image.created_at,
-    updatedAt: image.updated_at
-  };
 }

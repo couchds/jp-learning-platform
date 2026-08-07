@@ -1,13 +1,14 @@
 import fs from "node:fs/promises";
 import { Router } from "express";
 import { config } from "../config.js";
-import { getDb, readJson, touchNow, writeJson } from "../db/index.js";
+import { getDb, touchNow, writeJson } from "../db/index.js";
 import { asyncHandler, HttpError, requestAbortSignal } from "../lib/http.js";
 import { detectGrammar } from "../services/grammar.js";
 import { imageUpload, relativeUploadPath } from "../services/localUpload.js";
 import { termsFromOcrElements, upsertResourceTerms } from "../services/ocrTerms.js";
 import { postFile } from "../services/serviceProxy.js";
 import { removeUploadedFile } from "../services/uploadLifecycle.js";
+import { mapResourceImage, type ResourceImageRow } from "../services/resourceImages.js";
 
 type OcrResponse = {
   success?: boolean;
@@ -121,7 +122,7 @@ ocrRouter.post(
       const saved = persist();
 
       res.status(201).json({
-        image: mapImage(saved.image),
+        image: mapResourceImage(saved.image as ResourceImageRow),
         ocr: { ...result, terms: saved.suggestedTerms, grammarMatches: saved.grammarMatches },
         trackedTerms: saved.trackedTerms
       });
@@ -228,30 +229,3 @@ function isExpectedOcrService(payload: unknown) {
   return health.service === "ocr" && health.local_only === true;
 }
 
-function mapImage(row: unknown) {
-  const image = row as {
-    id: number;
-    resource_id: number | null;
-    file_path: string;
-    original_name: string | null;
-    mime_type: string | null;
-    size_bytes: number | null;
-    ocr_text: string | null;
-    ocr_elements_json: string;
-    created_at: string;
-    updated_at: string;
-  };
-
-  return {
-    id: image.id,
-    resourceId: image.resource_id,
-    filePath: image.file_path,
-    originalName: image.original_name,
-    mimeType: image.mime_type,
-    sizeBytes: image.size_bytes,
-    ocrText: image.ocr_text,
-    ocrElements: readJson<unknown[]>(image.ocr_elements_json, []),
-    createdAt: image.created_at,
-    updatedAt: image.updated_at
-  };
-}
