@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
+import { spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +9,7 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 import type {} from "../../web/src/desktop.js";
 
 const desktopDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const electronExecutable = createRequire(import.meta.url)("electron") as string;
 const testCapture = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 const editorCapture = `data:image/svg+xml;base64,${Buffer.from(`
   <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720">
@@ -27,6 +30,7 @@ let app: ElectronApplication;
 let page: Page;
 let userDataDir: string;
 let ocrServer: Server;
+let ocrServiceUrl: string;
 
 test.beforeEach(async () => {
   userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "yomunami-e2e-"));
@@ -59,6 +63,7 @@ test.beforeEach(async () => {
   });
   const ocrAddress = ocrServer.address();
   if (!ocrAddress || typeof ocrAddress === "string") throw new Error("Could not start the test OCR server");
+  ocrServiceUrl = `http://127.0.0.1:${ocrAddress.port}`;
   app = await electron.launch({
     args: [desktopDir],
     cwd: desktopDir,
@@ -67,7 +72,7 @@ test.beforeEach(async () => {
       YOMUNAMI_SKIP_SERVICES: "1",
       YOMUNAMI_TEST_CAPTURE_DATA_URL: testCapture,
       YOMUNAMI_USER_DATA_DIR: userDataDir,
-      OCR_SERVICE_URL: `http://127.0.0.1:${ocrAddress.port}`,
+      OCR_SERVICE_URL: ocrServiceUrl,
       ELECTRON_DISABLE_SECURITY_WARNINGS: "true"
     }
   });
@@ -96,6 +101,36 @@ test("boots the embedded backend through the isolated preload bridge", async () 
   });
   expect(health.status).toBe(200);
   await expect.poll(() => fs.stat(path.join(userDataDir, "data", "app.sqlite")).then(() => true)).toBe(true);
+});
+
+test("exits a duplicate desktop instance before it can boot", async () => {
+  const duplicate = spawn(electronExecutable, [desktopDir], {
+    cwd: desktopDir,
+    windowsHide: true,
+    stdio: "ignore",
+    env: {
+      ...process.env,
+      YOMUNAMI_SKIP_SERVICES: "1",
+      YOMUNAMI_TEST_CAPTURE_DATA_URL: testCapture,
+      YOMUNAMI_USER_DATA_DIR: userDataDir,
+      OCR_SERVICE_URL: ocrServiceUrl,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: "true"
+    }
+  });
+  const exitCode = await new Promise<number | null>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      duplicate.kill();
+      reject(new Error("Duplicate Yomunami instance did not exit"));
+    }, 10_000);
+    duplicate.once("error", reject);
+    duplicate.once("exit", (code) => {
+      clearTimeout(timeout);
+      resolve(code);
+    });
+  });
+
+  expect(exitCode).toBe(0);
+  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
 });
 
 test("navigates packaged file routes and exposes desktop-owned controls", async () => {

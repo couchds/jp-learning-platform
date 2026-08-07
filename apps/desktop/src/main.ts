@@ -17,7 +17,7 @@ if (process.env.YOMUNAMI_USER_DATA_DIR) {
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
-if (!hasSingleInstanceLock) app.quit();
+if (!hasSingleInstanceLock) app.exit(0);
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
