@@ -6,6 +6,13 @@ This project follows semantic versioning.
 
 ## Unreleased
 
+## 0.9.2 - 2026-08-07
+
+- Open saved resource images in a full-screen viewer directly from the gallery.
+- Zoom captures from 100% to 300%, reset zoom, and switch images without closing the viewer.
+- Support Escape, backdrop close, double-click zoom, and keyboard arrow navigation.
+- Add component and packaged Electron coverage for the expanded-image workflow.
+
 ## 0.9.1 - 2026-08-07
 
 - Bundle a compact offline JMdict and KANJIDIC2 dictionary with every desktop installer.

@@ -166,7 +166,7 @@ describe("integrated desktop OCR", () => {
 
 function desktopBridge(): KakomuDesktopBridge {
   return {
-    getRuntime: async () => ({ apiUrl: "http://127.0.0.1:4000", apiToken: "token", version: "0.9.1", platform: "win32", isDesktop: true }),
+    getRuntime: async () => ({ apiUrl: "http://127.0.0.1:4000", apiToken: "token", version: "0.9.2", platform: "win32", isDesktop: true }),
     getServices: async () => [] as DesktopService[],
     restartServices: async () => [],
     capture: async () => ({ ok: true, capture }),

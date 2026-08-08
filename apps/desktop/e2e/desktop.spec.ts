@@ -95,7 +95,7 @@ test.afterEach(async () => {
 
 test("boots the embedded backend through the isolated preload bridge", async () => {
   const runtime = await page.evaluate(() => window.kakomuDesktop?.getRuntime());
-  expect(runtime).toMatchObject({ isDesktop: true, version: "0.9.1" });
+  expect(runtime).toMatchObject({ isDesktop: true, version: "0.9.2" });
   expect(runtime?.apiUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
   expect(runtime?.apiToken).toHaveLength(64);
 

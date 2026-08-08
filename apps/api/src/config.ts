@@ -31,7 +31,7 @@ function numberFromEnv(value: string | undefined, fallback: number): number {
 }
 
 export const config = {
-  productVersion: "0.9.1",
+  productVersion: "0.9.2",
   env: process.env.NODE_ENV ?? "development",
   repoRoot: resourceRoot,
   resourceRoot,
