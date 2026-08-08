@@ -352,7 +352,12 @@ export function CaptureView({
                         <input type="checkbox" checked={checked} onChange={() => toggleTerm(term)} />
                         <span>{term.termType}</span>
                         <strong>{term.text}</strong>
-                        <small>{term.reading || term.meaning || "From this capture"}</small>
+                        <div className="term-card-definition">
+                          {term.reading && term.reading !== term.text && <small lang="ja">{term.reading}</small>}
+                          <small className={term.meaning ? "" : "term-definition-missing"}>
+                            {term.meaning || "Definition unavailable"}
+                          </small>
+                        </div>
                       </label>
                     );
                   })}

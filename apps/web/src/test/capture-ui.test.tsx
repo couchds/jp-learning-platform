@@ -145,6 +145,7 @@ describe("integrated desktop OCR", () => {
     render(<CaptureView desktopCapture={{ ok: true, capture }} onChange={() => undefined} />);
     fireEvent.click(await screen.findByRole("button", { name: "Save and read image" }));
     expect(await screen.findByRole("button", { name: "Save 2" })).toBeInTheDocument();
+    expect(screen.getByText("Japanese")).toBeInTheDocument();
     expect(screen.getByText("Image saved to Persona 5. Review the vocabulary and grammar below.")).toBeInTheDocument();
     expect(screen.getByText("Ongoing action or state")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save 1 grammar match" })).toBeInTheDocument();

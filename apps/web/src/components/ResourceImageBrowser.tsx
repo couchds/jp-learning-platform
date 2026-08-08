@@ -149,7 +149,15 @@ export function ResourceImageBrowser({
                 <div className="image-term-list">
                   {detail.data.terms.map((term) => (
                     <div className="image-term-row" key={termKey(term)}>
-                      <div><strong lang="ja">{term.text}</strong><span>{term.reading || term.meaning || term.termType}</span></div>
+                      <div className="image-term-copy">
+                        <div className="image-term-primary">
+                          <strong lang="ja">{term.text}</strong>
+                          {term.reading && term.reading !== term.text && <span lang="ja">{term.reading}</span>}
+                        </div>
+                        <small className={term.meaning ? "" : "image-term-missing"}>
+                          {term.meaning || "Definition unavailable"}
+                        </small>
+                      </div>
                       {savedTermKeys.has(termKey(term)) && <span className="saved-badge"><Check size={12} /> Saved</span>}
                     </div>
                   ))}

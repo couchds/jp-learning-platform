@@ -990,6 +990,16 @@
   color: var(--muted-ink);
 }
 
+.term-card-definition {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+
+.term-card-definition .term-definition-missing {
+  font-style: italic;
+}
+
 .tracker-layout,
 .quiz-layout {
   grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
@@ -1266,12 +1276,34 @@
   padding: 7px 2px;
 }
 
-.image-term-row > div,
 .image-grammar-row > div {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.image-term-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.image-term-primary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.image-term-copy small {
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.image-term-copy .image-term-missing {
+  font-style: italic;
 }
 
 .image-term-row strong {

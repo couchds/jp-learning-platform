@@ -31,12 +31,14 @@ describe("resource image browser", () => {
 
     expect(await screen.findByText("木立")).toBeInTheDocument();
     expect(screen.getByText("Between")).toBeInTheDocument();
+    expect(screen.getByText("grove")).toBeInTheDocument();
     expect(screen.getByText("Image 1 of 2")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next image" }));
 
     expect(await screen.findByText("日本語")).toBeInTheDocument();
     expect(screen.getByText("Ongoing action or state")).toBeInTheDocument();
+    expect(screen.getByText("Japanese language")).toBeInTheDocument();
     expect(screen.getByText("Image 2 of 2")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Saved capture 2" })).toBeInTheDocument();
   });

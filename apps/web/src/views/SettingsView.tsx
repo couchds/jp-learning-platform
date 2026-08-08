@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookOpen, CheckCircle2, CircleAlert, Database, FolderOpen, RefreshCw } from "lucide-react";
+import { BookOpen, CheckCircle2, CircleAlert, Database, ExternalLink, FolderOpen, RefreshCw } from "lucide-react";
 import { BackupPanel } from "../components/BackupPanel";
 import { getDesktopBridge, type DesktopRuntime, type DesktopService } from "../desktop";
 
@@ -97,6 +97,7 @@ export function SettingsView() {
         <div className="panel-heading"><div><span className="eyebrow">Advanced</span><h2>Learning data</h2></div></div>
         <a className="settings-link" href={bridge ? "#/database" : "/database"}><Database size={19} /><span><strong>Dictionary data</strong><small>Imports, local dictionaries, and kanji graph</small></span></a>
         <a className="settings-link" href={bridge ? "#/profile" : "/profile"}><BookOpen size={19} /><span><strong>Learning profile</strong><small>Knowledge history and progress details</small></span></a>
+        <a className="settings-link" href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noreferrer"><ExternalLink size={19} /><span><strong>Dictionary sources</strong><small>JMdict and KANJIDIC2 by EDRDG</small></span></a>
       </section>
     </section>
   );
