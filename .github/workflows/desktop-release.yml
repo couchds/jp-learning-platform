@@ -40,6 +40,17 @@ jobs:
       - run: npm ci
       - name: Build managed service sidecars
         run: python scripts/build_desktop_sidecars.py
+      - name: Restore bundled dictionary
+        id: dictionary-cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            apps/desktop/dictionaries/kakomu-dictionary.sqlite
+            data/dictionary-source
+          key: dictionary-bundle-${{ hashFiles('scripts/build_dictionary_bundle.py') }}
+      - name: Build bundled dictionary
+        if: steps.dictionary-cache.outputs.cache-hit != 'true'
+        run: npm run build:dictionary
       - name: Build desktop installers
         run: npm run make:desktop
         env:

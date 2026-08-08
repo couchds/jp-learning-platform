@@ -15,6 +15,10 @@ apps/desktop/test-results/
 apps/desktop/.sidecar-build/
 apps/desktop/sidecars/*
 !apps/desktop/sidecars/.gitkeep
+apps/desktop/dictionaries/*
+!apps/desktop/dictionaries/.gitkeep
+!apps/desktop/dictionaries/ATTRIBUTION.md
+data/dictionary-source/
 
 data/local/*
 !data/local/.gitkeep

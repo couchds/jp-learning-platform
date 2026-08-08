@@ -17,6 +17,11 @@ extraResources:
       - "kakomu-*"
   - from: resources/icon.png
     to: app-icon.png
+  - from: dictionaries
+    to: dictionaries
+    filter:
+      - "kakomu-dictionary.sqlite"
+      - "ATTRIBUTION.md"
 icon: resources/icon.png
 electronFuses:
   runAsNode: false

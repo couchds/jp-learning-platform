@@ -12,6 +12,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "build:desktop-sidecars": "python scripts/build_desktop_sidecars.py",
+    "build:dictionary": "python scripts/build_dictionary_bundle.py",
     "check": "npm run check --workspaces --if-present",
     "dev": "concurrently -n api,web -c green,cyan \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npm run dev --workspace @jp-learning-platform/api",
@@ -21,8 +22,8 @@
     "test": "npm run test --workspaces --if-present && npm run test:python",
     "test:desktop:e2e": "npm run test:e2e --workspace @jp-learning-platform/desktop",
     "test:python": "python -m unittest discover -s tests -p \"test_*.py\"",
-    "package:desktop": "npm run package --workspace @jp-learning-platform/desktop",
-    "make:desktop": "npm run make --workspace @jp-learning-platform/desktop"
+    "package:desktop": "npm run build:dictionary && npm run package --workspace @jp-learning-platform/desktop",
+    "make:desktop": "npm run build:dictionary && npm run make --workspace @jp-learning-platform/desktop"
   },
   "devDependencies": {
     "concurrently": "^10.0.4",
