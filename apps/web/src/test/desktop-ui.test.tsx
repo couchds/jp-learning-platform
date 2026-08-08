@@ -30,7 +30,7 @@ describe("desktop-aware settings", () => {
 
     render(<SettingsView />);
     expect(await screen.findByText("Some features need attention")).toBeInTheDocument();
-    expect(screen.getByText("Version 0.9.0")).toBeInTheDocument();
+    expect(screen.getByText("Version 0.9.1")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Restart app services"));
     expect(await screen.findByText("Everything is ready")).toBeInTheDocument();
     expect(restartServices).toHaveBeenCalledOnce();
@@ -39,7 +39,7 @@ describe("desktop-aware settings", () => {
 
 function createBridge(services: DesktopService[], restartServices: KakomuDesktopBridge["restartServices"]): KakomuDesktopBridge {
   return {
-    getRuntime: async () => ({ apiUrl: "http://127.0.0.1:4000", apiToken: "token", version: "0.9.0", platform: "win32", isDesktop: true }),
+    getRuntime: async () => ({ apiUrl: "http://127.0.0.1:4000", apiToken: "token", version: "0.9.1", platform: "win32", isDesktop: true }),
     getServices: async () => services,
     restartServices,
     capture: async () => ({ ok: true }),

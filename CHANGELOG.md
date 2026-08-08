@@ -6,6 +6,14 @@ This project follows semantic versioning.
 
 ## Unreleased
 
+## 0.9.1 - 2026-08-07
+
+- Bundle a compact offline JMdict and KANJIDIC2 dictionary with every desktop installer.
+- Add readings and English meanings to live OCR, saved captures, manual terms, and resource quizzes.
+- Enrich existing saved terms at read time so older captures gain definitions without reprocessing images.
+- Show detected text, reading, and meaning together in Capture and Saved Images.
+- Add dictionary source attribution and automated bundle, lookup, UI, and packaged-path coverage.
+
 ## 0.9.0 - 2026-08-07
 
 - Save every resource-linked OCR capture as a durable image, including cropped selections.
