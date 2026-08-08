@@ -238,6 +238,12 @@ test("saves a capture and reopens its words and grammar from the resource librar
   await expect(page.getByText("日本語", { exact: true })).toBeVisible();
   await expect(page.getByText("Ongoing action or state")).toBeVisible();
   await expect(page.locator(".resource-picker option").filter({ hasText: "Persona 5" })).toHaveCount(1);
+  await page.getByRole("button", { name: "Expand saved image 1" }).click();
+  await expect(page.getByRole("dialog", { name: "Saved capture 1 viewer" })).toBeVisible();
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await expect(page.getByText("150%", { exact: true })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("resource-image-viewer.png") });
+  await page.getByRole("button", { name: "Close image viewer" }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("resource-image-library.png"), fullPage: true });
 });

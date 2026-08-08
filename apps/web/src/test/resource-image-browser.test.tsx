@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
 import { ResourceImageBrowser } from "../components/ResourceImageBrowser";
@@ -54,6 +54,30 @@ describe("resource image browser", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete image" }));
 
     await waitFor(() => expect(onDelete).toHaveBeenCalledWith(12));
+  });
+
+  it("opens a full-screen viewer with zoom and keyboard navigation", async () => {
+    vi.mocked(api.assetUrl).mockImplementation(async (path) => path);
+    vi.mocked(api.resourceImage).mockImplementation(async (_resourceId, imageId) => imageDetail(imageId));
+
+    render(<ResourceImageBrowser resourceId={4} images={images} onDelete={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Expand saved image 1" }));
+
+    let dialog = screen.getByRole("dialog", { name: "Saved capture 1 viewer" });
+    expect(within(dialog).getByRole("img", { name: "Saved capture 1 enlarged" })).toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zoom in" }));
+    expect(within(dialog).getByText("150%")).toBeInTheDocument();
+    expect(within(dialog).getByRole("img", { name: "Saved capture 1 enlarged" })).toHaveStyle({ width: "150%" });
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    dialog = await screen.findByRole("dialog", { name: "Saved capture 2 viewer" });
+    await waitFor(() => expect(within(dialog).getByText("100%")).toBeInTheDocument());
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(document.body.style.overflow).toBe("");
   });
 });
 

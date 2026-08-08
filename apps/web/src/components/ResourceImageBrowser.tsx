@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, FileImage, Languages, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  FileImage,
+  Languages,
+  Maximize2,
+  RotateCcw,
+  Trash2,
+  X,
+  ZoomIn,
+  ZoomOut
+} from "lucide-react";
 import { api } from "../api";
 import type { DetectedTerm, ResourceImageDetail, ResourceImageSummary } from "../types";
 import { EmptyState, type Loadable } from "../views/shared";
@@ -17,6 +30,8 @@ export function ResourceImageBrowser({
   const [detail, setDetail] = useState<Loadable<ResourceImageDetail>>({ data: null, loading: false, error: null });
   const [imageUrls, setImageUrls] = useState<Record<number, string>>({});
   const [deleting, setDeleting] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     setSelectedId(images[0]?.id ?? null);
@@ -67,9 +82,33 @@ export function ResourceImageBrowser({
     [detail.data?.savedGrammar]
   );
 
+  useEffect(() => {
+    setZoom(1);
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!viewerOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setViewerOpen(false);
+      if (event.key === "ArrowLeft" && selectedIndex > 0) setSelectedId(images[selectedIndex - 1].id);
+      if (event.key === "ArrowRight" && selectedIndex < images.length - 1) setSelectedId(images[selectedIndex + 1].id);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [images, selectedIndex, viewerOpen]);
+
   function move(offset: number) {
     const next = images[selectedIndex + offset];
     if (next) setSelectedId(next.id);
+  }
+
+  function changeZoom(offset: number) {
+    setZoom((current) => Math.min(3, Math.max(1, current + offset)));
   }
 
   async function deleteSelected() {
@@ -109,13 +148,22 @@ export function ResourceImageBrowser({
 
       <div className="resource-image-browser">
         <div className="resource-image-viewer">
-          <div className="resource-image-stage">
-            {selectedSummary && imageUrls[selectedSummary.id] ? (
+          {selectedSummary && imageUrls[selectedSummary.id] ? (
+            <button
+              type="button"
+              className="resource-image-stage resource-image-expand"
+              aria-label={`Expand saved image ${selectedIndex + 1}`}
+              title="Expand image"
+              onClick={() => setViewerOpen(true)}
+            >
               <img src={imageUrls[selectedSummary.id]} alt={`Saved capture ${selectedIndex + 1}`} />
-            ) : (
+              <span className="resource-image-expand-icon" aria-hidden="true"><Maximize2 size={18} /></span>
+            </button>
+          ) : (
+            <div className="resource-image-stage">
               <FileImage size={30} aria-hidden="true" />
-            )}
-          </div>
+            </div>
+          )}
           <div className="resource-image-meta">
             <span>{selectedSummary ? formatCaptureDate(selectedSummary.createdAt) : ""}</span>
             <span>{selectedSummary?.ocrTextPreview || "No text recognized"}</span>
@@ -181,6 +229,56 @@ export function ResourceImageBrowser({
           ) : null}
         </div>
       </div>
+      {viewerOpen && selectedSummary && imageUrls[selectedSummary.id] && createPortal(
+        <div
+          className="image-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Saved capture ${selectedIndex + 1} viewer`}
+        >
+          <div className="image-lightbox-toolbar">
+            <div className="image-lightbox-page-controls">
+              <button type="button" className="icon-button" aria-label="Previous image" title="Previous image" disabled={selectedIndex === 0} onClick={() => move(-1)}>
+                <ChevronLeft size={19} />
+              </button>
+              <strong>Image {selectedIndex + 1} of {images.length}</strong>
+              <button type="button" className="icon-button" aria-label="Next image" title="Next image" disabled={selectedIndex === images.length - 1} onClick={() => move(1)}>
+                <ChevronRight size={19} />
+              </button>
+            </div>
+            <div className="image-lightbox-zoom-controls">
+              <button type="button" className="icon-button" aria-label="Zoom out" title="Zoom out" disabled={zoom === 1} onClick={() => changeZoom(-0.5)}>
+                <ZoomOut size={18} />
+              </button>
+              <span aria-live="polite">{Math.round(zoom * 100)}%</span>
+              <button type="button" className="icon-button" aria-label="Zoom in" title="Zoom in" disabled={zoom === 3} onClick={() => changeZoom(0.5)}>
+                <ZoomIn size={18} />
+              </button>
+              <button type="button" className="icon-button" aria-label="Reset zoom" title="Reset zoom" disabled={zoom === 1} onClick={() => setZoom(1)}>
+                <RotateCcw size={17} />
+              </button>
+              <button type="button" className="icon-button" aria-label="Close image viewer" title="Close" autoFocus onClick={() => setViewerOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+          <div
+            className="image-lightbox-canvas"
+            onClick={(event) => {
+              if (event.currentTarget === event.target) setViewerOpen(false);
+            }}
+          >
+            <img
+              src={imageUrls[selectedSummary.id]}
+              alt={`Saved capture ${selectedIndex + 1} enlarged`}
+              className={zoom === 1 ? "" : "zoomed"}
+              style={zoom === 1 ? undefined : { width: `${zoom * 100}%` }}
+              onDoubleClick={() => setZoom((current) => current === 1 ? 2 : 1)}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
     </section>
   );
 }
