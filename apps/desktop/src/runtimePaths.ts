@@ -17,6 +17,9 @@ export function resolveDesktopRuntimePaths(options: {
     resourceRoot,
     dataRoot,
     databasePath: path.join(dataRoot, "app.sqlite"),
+    dictionaryPath: options.isPackaged
+      ? path.join(resourceRoot, "dictionaries", "kakomu-dictionary.sqlite")
+      : path.join(resourceRoot, "apps", "desktop", "dictionaries", "kakomu-dictionary.sqlite"),
     importDir: path.join(dataRoot, "imports"),
     uploadDir: path.join(dataRoot, "uploads"),
     backupDir: path.join(dataRoot, "backups"),

@@ -12,6 +12,9 @@ describe("resolveDesktopRuntimePaths", () => {
     });
     expect(result.resourceRoot).toBe(path.normalize(path.join("installed", "resources")));
     expect(result.databasePath).toBe(path.normalize(path.join("home", "Kakomu", "data", "app.sqlite")));
+    expect(result.dictionaryPath).toBe(
+      path.normalize(path.join("installed", "resources", "dictionaries", "kakomu-dictionary.sqlite"))
+    );
     expect(result.uploadDir.startsWith(result.resourceRoot)).toBe(false);
   });
 
@@ -24,5 +27,8 @@ describe("resolveDesktopRuntimePaths", () => {
       isPackaged: false
     });
     expect(result.resourceRoot).toBe(path.resolve(appPath, "../.."));
+    expect(result.dictionaryPath).toBe(
+      path.resolve(appPath, "../..", "apps", "desktop", "dictionaries", "kakomu-dictionary.sqlite")
+    );
   });
 });

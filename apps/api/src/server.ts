@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { createApp } from "./app.js";
 import { config } from "./config.js";
 import { closeDb, getDb } from "./db/index.js";
+import { closeDictionaryDb } from "./services/dictionaryLookup.js";
 import { reconcileImportJobs } from "./services/importJobs.js";
 
 export type RunningApiServer = {
@@ -40,6 +41,7 @@ export async function startApiServer(options: { host?: string; port?: number } =
     url,
     close: () => new Promise<void>((resolve, reject) => {
       server.close((error) => {
+        closeDictionaryDb();
         closeDb();
         if (error) reject(error);
         else resolve();

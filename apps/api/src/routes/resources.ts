@@ -12,6 +12,7 @@ import {
   type WordSummaryRow
 } from "../db/mappers.js";
 import { asyncHandler, HttpError, parseLimitOffset } from "../lib/http.js";
+import { enrichTerms } from "../services/dictionaryLookup.js";
 import { type SuggestedTerm, upsertResourceTerms } from "../services/ocrTerms.js";
 import { stageUploadedFiles } from "../services/uploadLifecycle.js";
 import { buildBalancedQuizDeck } from "../services/quiz.js";
@@ -199,7 +200,7 @@ resourcesRouter.get(
         resource: { frequency: row.frequency, notes: row.notes }
       })),
       customVocabulary,
-      terms: terms.map(mapResourceTerm),
+      terms: enrichTerms(terms.map(mapResourceTerm)),
       images: images.map(mapResourceImageSummary)
     });
   })
@@ -222,7 +223,7 @@ resourcesRouter.get(
       .all(resourceId, imageId) as ResourceTermRow[]).map(mapResourceTerm);
     const savedGrammar = listResourceGrammar(resourceId).filter((item) => item.sourceImageId === imageId);
 
-    res.json({ ...analysis, savedTerms, savedGrammar });
+    res.json({ ...analysis, savedTerms: enrichTerms(savedTerms), savedGrammar });
   })
 );
 
@@ -404,7 +405,7 @@ resourcesRouter.get(
       .get(resourceId) as { count: number };
 
     res.json({
-      items: rows.map(mapResourceTerm),
+      items: enrichTerms(rows.map(mapResourceTerm)),
       page: { limit, offset, total: total.count }
     });
   })
@@ -417,7 +418,7 @@ resourcesRouter.post(
     getResourceOrThrow(resourceId);
     const term = resourceTermSchema.parse(req.body);
     validateTermImageSources(resourceId, [term]);
-    const terms = upsertResourceTerms(resourceId, [term]);
+    const terms = upsertResourceTerms(resourceId, enrichTerms([term]));
     res.status(201).json({ terms });
   })
 );
@@ -429,7 +430,7 @@ resourcesRouter.post(
     getResourceOrThrow(resourceId);
     const body = bulkTermsSchema.parse(req.body);
     validateTermImageSources(resourceId, body.terms);
-    const terms = upsertResourceTerms(resourceId, body.terms);
+    const terms = upsertResourceTerms(resourceId, enrichTerms(body.terms));
     res.status(201).json({ terms });
   })
 );
@@ -497,7 +498,13 @@ resourcesRouter.get(
       )
       .all(resourceId, limit) as Array<WordSummaryRow & { frequency: number }>;
 
-    const termQuestions = terms.map((term) => ({
+    const enrichedTerms = enrichTerms(terms.map((term) => ({
+      ...term,
+      termType: term.term_type,
+      reading: term.reading,
+      meaning: term.meaning
+    })));
+    const termQuestions = enrichedTerms.map((term) => ({
         id: `term:${term.id}`,
         sourceType: term.term_type,
         sourceKey: term.text,

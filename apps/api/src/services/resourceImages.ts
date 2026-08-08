@@ -1,4 +1,5 @@
 import { readJson } from "../db/index.js";
+import { enrichTerms } from "./dictionaryLookup.js";
 import { detectGrammar } from "./grammar.js";
 import { termsFromOcrElements } from "./ocrTerms.js";
 
@@ -33,7 +34,7 @@ export function mapResourceImage(row: ResourceImageRow) {
 
 export function analyzeResourceImage(row: ResourceImageRow) {
   const image = mapResourceImage(row);
-  const terms = termsFromOcrElements(image.ocrElements).map((term) => ({
+  const terms = enrichTerms(termsFromOcrElements(image.ocrElements)).map((term) => ({
     ...term,
     sourceImageId: image.id
   }));
@@ -46,20 +47,22 @@ export function analyzeResourceImage(row: ResourceImageRow) {
 }
 
 export function mapResourceImageSummary(row: ResourceImageRow) {
-  const analysis = analyzeResourceImage(row);
+  const image = mapResourceImage(row);
+  const terms = termsFromOcrElements(image.ocrElements);
+  const grammarMatches = detectGrammar(image.ocrText ?? "", image.ocrElements);
   return {
-    id: analysis.image.id,
-    resourceId: analysis.image.resourceId,
-    filePath: analysis.image.filePath,
-    imageUrl: analysis.image.imageUrl,
-    originalName: analysis.image.originalName,
-    mimeType: analysis.image.mimeType,
-    sizeBytes: analysis.image.sizeBytes,
-    ocrTextPreview: (analysis.image.ocrText ?? "").replace(/\s+/g, " ").trim().slice(0, 160),
-    termCount: analysis.terms.length,
-    grammarCount: analysis.grammarMatches.length,
-    createdAt: analysis.image.createdAt,
-    updatedAt: analysis.image.updatedAt
+    id: image.id,
+    resourceId: image.resourceId,
+    filePath: image.filePath,
+    imageUrl: image.imageUrl,
+    originalName: image.originalName,
+    mimeType: image.mimeType,
+    sizeBytes: image.sizeBytes,
+    ocrTextPreview: (image.ocrText ?? "").replace(/\s+/g, " ").trim().slice(0, 160),
+    termCount: terms.length,
+    grammarCount: grammarMatches.length,
+    createdAt: image.createdAt,
+    updatedAt: image.updatedAt
   };
 }
 

@@ -41,6 +41,10 @@ export const config = {
   host: process.env.API_HOST ?? "127.0.0.1",
   port: Number.parseInt(process.env.API_PORT ?? "3001", 10),
   databasePath: process.env.DATABASE_PATH ?? path.join(dataRoot, "app.sqlite"),
+  dictionaryPath: path.resolve(
+    process.env.KAKOMU_DICTIONARY_PATH ??
+      path.join(resourceRoot, "apps/desktop/dictionaries/kakomu-dictionary.sqlite")
+  ),
   uploadDir: process.env.UPLOAD_DIR ?? path.join(resourceRoot, "uploads"),
   backupDir: process.env.BACKUP_DIR ?? path.join(dataRoot, "backups"),
   desktopAuthToken: (process.env.KAKOMU_DESKTOP_AUTH_TOKEN ?? process.env.YOMUNAMI_DESKTOP_AUTH_TOKEN)?.trim() || null,

@@ -4,6 +4,7 @@ import { config } from "../config.js";
 import { getDb, touchNow, writeJson } from "../db/index.js";
 import { asyncHandler, HttpError, requestAbortSignal } from "../lib/http.js";
 import { detectGrammar } from "../services/grammar.js";
+import { enrichTerms } from "../services/dictionaryLookup.js";
 import { imageUpload, relativeUploadPath } from "../services/localUpload.js";
 import { termsFromOcrElements, upsertResourceTerms } from "../services/ocrTerms.js";
 import { postFile } from "../services/serviceProxy.js";
@@ -62,7 +63,7 @@ ocrRouter.post(
       const result = await runOcr(req.file.path, req.file.originalname, req.file.mimetype, requestAbortSignal(req));
       res.json({
         ...result,
-        terms: termsFromOcrElements(result.elements)
+        terms: enrichTerms(termsFromOcrElements(result.elements))
       });
     } finally {
       await fs.rm(req.file.path, { force: true });
@@ -107,7 +108,7 @@ ocrRouter.post(
             writeJson(result.elements),
             now
           );
-        const suggestedTerms = termsFromOcrElements(result.elements).map((term) => ({
+        const suggestedTerms = enrichTerms(termsFromOcrElements(result.elements)).map((term) => ({
           ...term,
           sourceImageId: Number(saved.lastInsertRowid)
         }));

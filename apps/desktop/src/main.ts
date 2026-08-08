@@ -101,6 +101,7 @@ function configureBackendEnvironment() {
   process.env.KAKOMU_RESOURCE_ROOT = runtimePaths.resourceRoot;
   process.env.KAKOMU_DATA_ROOT = runtimePaths.dataRoot;
   process.env.DATABASE_PATH = runtimePaths.databasePath;
+  process.env.KAKOMU_DICTIONARY_PATH = runtimePaths.dictionaryPath;
   process.env.IMPORT_DIR = runtimePaths.importDir;
   process.env.UPLOAD_DIR = runtimePaths.uploadDir;
   process.env.BACKUP_DIR = runtimePaths.backupDir;
